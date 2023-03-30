@@ -4,4 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = "0.9.0"
+#bevy = { git = "https://github.com/bevyengine/bevy.git" }
+bevy = "0.10"
+bevy_egui = "0.20"
+log = "0.4"
