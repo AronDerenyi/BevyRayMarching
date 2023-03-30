@@ -14,21 +14,38 @@ use bevy::{
 const SHADER_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 698782022341067255);
 
-const STENCIL_SHADER_HANDLE: HandleUntyped =
+const FILTER_SHADER_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 698782022341067256);
+
+const STENCIL_SHADER_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 6987820223410672576);
 
 pub fn load_shaders(app: &mut App) {
     load_internal_asset!(app, SHADER_HANDLE, "ray_marching.wgsl", Shader::from_wgsl);
-    load_internal_asset!(app, STENCIL_SHADER_HANDLE, "stencil_shader.wgsl", Shader::from_wgsl);
+    load_internal_asset!(
+        app,
+        FILTER_SHADER_HANDLE,
+        "filter_shader.wgsl",
+        Shader::from_wgsl
+    );
+    load_internal_asset!(
+        app,
+        STENCIL_SHADER_HANDLE,
+        "stencil_shader.wgsl",
+        Shader::from_wgsl
+    );
 }
 
 #[derive(Resource, Debug)]
 pub struct Pipelines {
     pipeline: CachedRenderPipelineId,
+    filter_pipeline: CachedRenderPipelineId,
     write_pipeline: CachedRenderPipelineId,
     test_pipeline: CachedRenderPipelineId,
     camera_bind_layout: BindGroupLayout,
     shapes_bind_layout: BindGroupLayout,
+    pub filter_bind_layout: BindGroupLayout,
+    pub sampler: Sampler
 }
 
 impl FromWorld for Pipelines {
@@ -63,6 +80,36 @@ impl FromWorld for Pipelines {
             }],
         });
 
+        let filter_bind_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: "Filter bind group layout".into(),
+            entries: &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Float { filterable: true },
+                        view_dimension: TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    visibility: ShaderStages::FRAGMENT,
+                    count: None,
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                    visibility: ShaderStages::FRAGMENT,
+                    count: None,
+                },
+            ],
+        });
+
+        let sampler = device.create_sampler(&SamplerDescriptor {
+            min_filter: FilterMode::Linear,
+            mag_filter: FilterMode::Linear,
+            address_mode_u: AddressMode::ClampToEdge,
+            address_mode_v: AddressMode::ClampToEdge,
+            ..Default::default()
+        });
+
         let mut cache = world.resource_mut::<PipelineCache>();
         let pipeline = cache.queue_render_pipeline(RenderPipelineDescriptor {
             label: Some("Ray Marching pipeline".into()),
@@ -75,6 +122,26 @@ impl FromWorld for Pipelines {
                     ShaderDefVal::UInt("SPHERES".into(), Shapes::SPHERES as u32),
                     ShaderDefVal::UInt("CUBES".into(), Shapes::CUBES as u32),
                 ],
+                entry_point: "main".into(),
+                targets: vec![Some(ColorTargetState {
+                    format: TextureFormat::Rgba8Unorm,
+                    blend: None,
+                    write_mask: ColorWrites::ALL,
+                })],
+            }),
+            primitive: default(),
+            multisample: default(),
+            depth_stencil: None,
+        });
+
+        let filter_pipeline = cache.queue_render_pipeline(RenderPipelineDescriptor {
+            label: Some("Filter pipeline".into()),
+            layout: vec![filter_bind_layout.clone()],
+            push_constant_ranges: vec![],
+            vertex: fullscreen_shader_vertex_state(),
+            fragment: Some(FragmentState {
+                shader: FILTER_SHADER_HANDLE.typed(),
+                shader_defs: default(),
                 entry_point: "main".into(),
                 targets: vec![Some(ColorTargetState {
                     format: TextureFormat::Rgba8UnormSrgb,
@@ -129,10 +196,13 @@ impl FromWorld for Pipelines {
 
         Self {
             pipeline,
+            filter_pipeline,
             write_pipeline,
             test_pipeline,
             camera_bind_layout,
             shapes_bind_layout,
+            filter_bind_layout,
+            sampler
         }
     }
 }
@@ -141,6 +211,12 @@ impl<'a> Pipelines {
     pub fn pipeline(&self, cache: &'a PipelineCache) -> &'a RenderPipeline {
         cache
             .get_render_pipeline(self.pipeline)
+            .expect("Pipeline not set yet")
+    }
+
+    pub fn filter_pipeline(&self, cache: &'a PipelineCache) -> &'a RenderPipeline {
+        cache
+            .get_render_pipeline(self.filter_pipeline)
             .expect("Pipeline not set yet")
     }
 
