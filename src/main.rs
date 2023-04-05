@@ -44,8 +44,6 @@ fn main() {
         .add_startup_system(setup)
         .add_system(orbit_controller)
         .add_system(orbit_updater)
-        .init_resource::<FrameCount>()
-        .add_system(performance)
         .add_system(gui)
         .run();
 }
@@ -156,21 +154,5 @@ fn orbit_updater(mut orbits: Query<(&mut Transform, &OrbitControls)>) {
             Quat::from_rotation_z(orbit.rotation.x) * Quat::from_rotation_x(orbit.rotation.y);
         transform.translation = orbit.pivot + rotation * Vec3::Z * orbit.zoom;
         transform.rotation = rotation;
-    }
-}
-
-#[derive(Resource, Default)]
-struct FrameCount {
-    frames: u32,
-    elapsed: f32,
-}
-
-fn performance(time: Res<Time>, mut frame_count: ResMut<FrameCount>) {
-    frame_count.frames += 1;
-    frame_count.elapsed += time.delta_seconds();
-    if frame_count.elapsed > 1.0 {
-        frame_count.elapsed %= 1.0;
-        println!("{}", frame_count.frames);
-        frame_count.frames = 0;
     }
 }

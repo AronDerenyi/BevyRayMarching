@@ -1,14 +1,7 @@
 use bevy::{
-    asset::load_internal_asset,
     core_pipeline::fullscreen_vertex_shader::fullscreen_shader_vertex_state,
-    prelude::{
-        default, App, Component, FromWorld, HandleUntyped, Mat4, Resource, Shader, Vec3, World,
-    },
-    reflect::TypeUuid,
-    render::{
-        render_resource::{ShaderType, *},
-        renderer::{RenderDevice, RenderQueue},
-    },
+    prelude::{default, FromWorld, Resource, World},
+    render::{render_resource::*, renderer::RenderDevice},
 };
 
 use super::shaders;
@@ -54,7 +47,7 @@ impl FromWorld for Pipelines {
             ..Default::default()
         });
 
-        let mut cache = world.resource_mut::<PipelineCache>();
+        let cache = world.resource::<PipelineCache>();
         let filter_pipeline = cache.queue_render_pipeline(RenderPipelineDescriptor {
             label: Some("Filter pipeline".into()),
             layout: vec![filter_bind_layout.clone()],
