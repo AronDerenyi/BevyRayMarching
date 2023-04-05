@@ -1,5 +1,7 @@
 use super::{
-    pipelines::{CameraIndex, CamerasMeta, Pipelines, ShapesMeta},
+    pipelines::{Pipelines, ShapesMeta},
+    camera::{CameraUniformIndex, CameraBindGroup},
+    ray_marching_pipeline::RayMarchingPipeline,
     Textures,
 };
 use bevy::{
@@ -18,7 +20,7 @@ pub(super) struct RayMarchingNode {
         &'static Textures,
         &'static ExtractedCamera,
         &'static ViewTarget,
-        &'static CameraIndex,
+        &'static CameraUniformIndex,
     )>,
 }
 
@@ -47,8 +49,13 @@ impl Node for RayMarchingNode {
 
         let pipeline_cache = world.resource::<PipelineCache>();
         let pipelines = world.resource::<Pipelines>();
-        let pipeline = pipelines.pipeline(pipeline_cache);
-        let cameras = world.resource::<CamerasMeta>();
+        let raymarching_pipeline = pipeline_cache
+            .get_render_pipeline(world.resource::<RayMarchingPipeline>().pipeline_id)
+            .unwrap();
+        let filter_pipeline = pipeline_cache
+            .get_render_pipeline(pipelines.filter_pipeline)
+            .unwrap();
+        let camera_bind_group = world.resource::<CameraBindGroup>();
         let shapes = world.resource::<ShapesMeta>();
 
         //        let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
@@ -74,31 +81,32 @@ impl Node for RayMarchingNode {
                 depth_stencil_attachment: None,
             });
 
-            //        if let Some(viewport) = camera.viewport.as_ref() {
-            //            render_pass.set_camera_viewport(viewport);
-            //        }
-
-            render_pass.set_render_pipeline(pipeline);
-            render_pass.set_bind_group(0, cameras.bind_group(), &[index.index()]);
+            render_pass.set_render_pipeline(raymarching_pipeline);
+            render_pass.set_bind_group(0, camera_bind_group, &[index.index()]);
             render_pass.set_bind_group(1, shapes.bind_group(), &[]);
             render_pass.draw(0..3, 0..1);
         }
 
         {
-            let bind_group = render_context.render_device().create_bind_group(&BindGroupDescriptor {
-                label: Some("filter bind group"),
-                layout: &pipelines.filter_bind_layout,
-                entries: &[
-                    BindGroupEntry {
-                        binding: 0,
-                        resource: BindingResource::TextureView(&textures.texture.default_view),
-                    },
-                    BindGroupEntry {
-                        binding: 1,
-                        resource: BindingResource::Sampler(&pipelines.sampler),
-                    },
-                ],
-            });
+            let bind_group =
+                render_context
+                    .render_device()
+                    .create_bind_group(&BindGroupDescriptor {
+                        label: Some("filter bind group"),
+                        layout: &pipelines.filter_bind_layout,
+                        entries: &[
+                            BindGroupEntry {
+                                binding: 0,
+                                resource: BindingResource::TextureView(
+                                    &textures.texture.default_view,
+                                ),
+                            },
+                            BindGroupEntry {
+                                binding: 1,
+                                resource: BindingResource::Sampler(&pipelines.sampler),
+                            },
+                        ],
+                    });
 
             let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
                 label: Some("Filter Pass"),
@@ -113,7 +121,7 @@ impl Node for RayMarchingNode {
                 render_pass.set_camera_viewport(viewport);
             }
 
-            render_pass.set_render_pipeline(pipelines.filter_pipeline(pipeline_cache));
+            render_pass.set_render_pipeline(filter_pipeline);
             render_pass.set_bind_group(0, &bind_group, &[]);
             render_pass.draw(0..3, 0..1);
         }

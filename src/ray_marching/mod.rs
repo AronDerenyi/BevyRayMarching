@@ -1,12 +1,19 @@
-mod cameras;
+mod camera;
 mod node;
 mod pipelines;
+mod ray_marching_pipeline;
+mod shaders;
 pub mod shapes;
 
 use self::{
+    camera::{
+        prepare_cameras, queue_camera_bind_group, CameraBindGroupLayout, CameraUniforms,
+        ExtractedCamera,
+    },
     node::RayMarchingNode,
-    pipelines::{CamerasMeta, Pipelines, ShapesMeta},
-    shapes::ExtractedShape, cameras::ExtractedCamera,
+    pipelines::{Pipelines, ShapesMeta},
+    ray_marching_pipeline::RayMarchingPipeline,
+    shapes::ExtractedShape,
 };
 use bevy::{
     core_pipeline::core_3d,
@@ -14,9 +21,12 @@ use bevy::{
     render::{
         extract_component::ExtractComponentPlugin,
         render_graph::RenderGraph,
+        render_resource::{
+            Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
+        },
+        renderer::RenderDevice,
         texture::{CachedTexture, TextureCache},
-        view::ExtractedView,
-        RenderApp, RenderSet, render_resource::{TextureDescriptor, Extent3d, TextureDimension, TextureFormat, TextureUsages}, renderer::RenderDevice,
+        RenderApp, RenderSet,
     },
 };
 
@@ -25,19 +35,25 @@ pub struct RayMarchingPlugin;
 
 impl Plugin for RayMarchingPlugin {
     fn build(&self, app: &mut App) {
-        pipelines::load_shaders(app);
+        shaders::load_shaders(app);
 
         app.add_plugin(ExtractComponentPlugin::<ExtractedCamera>::default())
             .add_plugin(ExtractComponentPlugin::<ExtractedShape>::default());
 
         let render_app = &mut app.sub_app_mut(RenderApp);
         render_app
+            .init_resource::<CameraUniforms>()
+            .init_resource::<CameraBindGroupLayout>()
+            .add_system(prepare_cameras.in_set(RenderSet::Prepare))
+            .add_system(queue_camera_bind_group.in_set(RenderSet::Queue))
             .init_resource::<Pipelines>()
-            .init_resource::<CamerasMeta>()
             .init_resource::<ShapesMeta>()
-            .add_system(cameras::prepare_cameras.in_set(RenderSet::Prepare))
+            .init_resource::<RayMarchingPipeline>()
             .add_system(shapes::prepare_shapes.in_set(RenderSet::Prepare))
-            .add_system(prepare_textures.in_set(RenderSet::Prepare));
+            .add_system(prepare_textures.in_set(RenderSet::Prepare))
+            .add_system(
+                ray_marching_pipeline::queue_ray_marching_pipeline.in_set(RenderSet::Queue),
+            );
 
         let world = &mut render_app.world;
         let node = RayMarchingNode::new(world);
@@ -72,7 +88,11 @@ fn prepare_textures(
     cameras: Query<(Entity, &bevy::render::camera::ExtractedCamera)>,
 ) {
     for (entity, camera) in &cameras {
-        if let Some(UVec2 { x: width, y: height }) = camera.physical_viewport_size {
+        if let Some(UVec2 {
+            x: width,
+            y: height,
+        }) = camera.physical_viewport_size
+        {
             let descriptor = TextureDescriptor {
                 label: Some("Downsample texture"),
                 size: Extent3d {
@@ -88,7 +108,7 @@ fn prepare_textures(
                 view_formats: &[],
             };
             commands.entity(entity).insert(Textures {
-                texture: texture_cache.get(&render_device, descriptor)
+                texture: texture_cache.get(&render_device, descriptor),
             });
         }
     }
@@ -99,3 +119,30 @@ fn prepare_textures(
 //        commands.entity(entity).insert(bundle)
 //    }
 //}
+
+/*
+
+extracted data:
+    shape
+    camera
+
+uniform data:
+    shapes (global)
+    camera (per view)
+    target view sizes (per view, per target)
+
+textures:
+    per view
+
+bind group layout:
+    shapes
+    camera
+    target view (texture, size)
+
+pipeline:
+    ray marching (shapes, camera, target view)
+    post processing
+
+bind group
+
+*/
