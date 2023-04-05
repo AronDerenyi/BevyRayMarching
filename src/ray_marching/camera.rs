@@ -2,15 +2,28 @@ use bevy::{
     ecs::query::QueryItem,
     prelude::{
         Commands, Component, Entity, FromWorld, GlobalTransform, Projection,
-        Projection::Perspective, Query, Res, ResMut, Resource, Vec3,
+        Projection::Perspective, Query, Res, ResMut, Resource, Vec3, Plugin, IntoSystemConfig,
     },
     render::{
-        extract_component::ExtractComponent,
+        extract_component::{ExtractComponent, ExtractComponentPlugin},
         render_resource::*,
-        renderer::{RenderDevice, RenderQueue},
+        renderer::{RenderDevice, RenderQueue}, RenderApp, RenderSet,
     },
 };
 use std::ops::Deref;
+
+pub struct CameraPlugin;
+
+impl Plugin for CameraPlugin {
+    fn build(&self, app: &mut bevy::prelude::App) {
+        app.add_plugin(ExtractComponentPlugin::<ExtractedCamera>::default());
+        app.sub_app_mut(RenderApp)
+            .init_resource::<CameraUniforms>()
+            .init_resource::<CameraBindGroupLayout>()
+            .add_system(prepare_cameras.in_set(RenderSet::Prepare))
+            .add_system(queue_camera_bind_group.in_set(RenderSet::Queue));
+    }
+}
 
 #[derive(Component, Clone)]
 pub struct ExtractedCamera {

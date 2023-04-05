@@ -6,10 +6,7 @@ mod shaders;
 pub mod shapes;
 
 use self::{
-    camera::{
-        prepare_cameras, queue_camera_bind_group, CameraBindGroupLayout, CameraUniforms,
-        ExtractedCamera,
-    },
+    camera::CameraPlugin,
     node::RayMarchingNode,
     pipelines::{Pipelines, ShapesMeta},
     ray_marching_pipeline::RayMarchingPipeline,
@@ -37,15 +34,11 @@ impl Plugin for RayMarchingPlugin {
     fn build(&self, app: &mut App) {
         shaders::load_shaders(app);
 
-        app.add_plugin(ExtractComponentPlugin::<ExtractedCamera>::default())
-            .add_plugin(ExtractComponentPlugin::<ExtractedShape>::default());
+        app.add_plugin(CameraPlugin);
+        app.add_plugin(ExtractComponentPlugin::<ExtractedShape>::default());
 
         let render_app = &mut app.sub_app_mut(RenderApp);
         render_app
-            .init_resource::<CameraUniforms>()
-            .init_resource::<CameraBindGroupLayout>()
-            .add_system(prepare_cameras.in_set(RenderSet::Prepare))
-            .add_system(queue_camera_bind_group.in_set(RenderSet::Queue))
             .init_resource::<Pipelines>()
             .init_resource::<ShapesMeta>()
             .init_resource::<RayMarchingPipeline>()
