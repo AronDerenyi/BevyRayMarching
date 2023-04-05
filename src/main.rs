@@ -1,16 +1,14 @@
 pub mod ray_marching;
 
-use std::f32::consts;
-
-use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, Diagnostics};
-use bevy::{input::mouse::MouseWheel, diagnostic::LogDiagnosticsPlugin};
+use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
-use bevy::window::PresentMode;
-use bevy_egui::{egui, EguiContext, EguiPlugin, EguiContexts};
+use bevy::{diagnostic::LogDiagnosticsPlugin, input::mouse::MouseWheel};
+use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use ray_marching::{
-    shapes::Shape::{Cube, Plane, Sphere},
     RayMarchingPlugin,
+    Shape::{Cube, Plane, Sphere},
 };
+use std::f32::consts;
 
 /*
 LogPlugin {
@@ -27,16 +25,16 @@ struct OrbitControls {
 }
 
 fn main() {
-//    WindowPlugin {
-//        window: WindowDescriptor {
-//            title: "Ray marching".to_string(),
-//            present_mode: PresentMode::Immediate,
-//            width: 960.0,
-//            height: 640.0,
-//            ..default()
-//        },
-//        ..default()
-//    }
+    //    WindowPlugin {
+    //        window: WindowDescriptor {
+    //            title: "Ray marching".to_string(),
+    //            present_mode: PresentMode::Immediate,
+    //            width: 960.0,
+    //            height: 640.0,
+    //            ..default()
+    //        },
+    //        ..default()
+    //    }
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(LogDiagnosticsPlugin::default())

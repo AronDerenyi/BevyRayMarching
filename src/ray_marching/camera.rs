@@ -18,7 +18,7 @@ impl Plugin for CameraPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
         app.add_plugin(ExtractComponentPlugin::<ExtractedCamera>::default());
         app.sub_app_mut(RenderApp)
-            .init_resource::<CameraUniforms>()
+            .init_resource::<CameraUniformBuffer>()
             .init_resource::<CameraBindGroupLayout>()
             .add_system(prepare_cameras.in_set(RenderSet::Prepare))
             .add_system(queue_camera_bind_group.in_set(RenderSet::Queue));
@@ -26,7 +26,7 @@ impl Plugin for CameraPlugin {
 }
 
 #[derive(Component, Clone)]
-pub struct ExtractedCamera {
+struct ExtractedCamera {
     projection: Projection,
     transform: GlobalTransform,
 }
@@ -45,24 +45,15 @@ impl ExtractComponent for ExtractedCamera {
 }
 
 #[derive(ShaderType, Clone, Default)]
-pub struct CameraUniform {
-    pub position: Vec3,
-    pub right: Vec3,
-    pub up: Vec3,
-    pub forward: Vec3,
+struct CameraUniform {
+    position: Vec3,
+    right: Vec3,
+    up: Vec3,
+    forward: Vec3,
 }
 
 #[derive(Resource, Default)]
-pub struct CameraUniforms(DynamicUniformBuffer<CameraUniform>);
-
-impl Deref for CameraUniforms {
-    type Target = DynamicUniformBuffer<CameraUniform>;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+struct CameraUniformBuffer(DynamicUniformBuffer<CameraUniform>);
 
 #[derive(Component)]
 pub struct CameraUniformIndex(u32);
@@ -74,9 +65,9 @@ impl CameraUniformIndex {
     }
 }
 
-pub(super) fn prepare_cameras(
+fn prepare_cameras(
     mut commands: Commands,
-    mut uniforms: ResMut<CameraUniforms>,
+    mut uniform_buffer: ResMut<CameraUniformBuffer>,
     cameras: Query<(Entity, &ExtractedCamera)>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
@@ -93,14 +84,14 @@ pub(super) fn prepare_cameras(
                     up: matrix * Vec3::Y * fov_tan,
                     forward: matrix * Vec3::NEG_Z,
                 };
-                (entity, CameraUniformIndex(uniforms.0.push(uniform)))
+                (entity, CameraUniformIndex(uniform_buffer.0.push(uniform)))
             }
             _ => panic!("Unsupported projection"),
         })
         .collect::<Vec<_>>();
 
     commands.insert_or_spawn_batch(entities);
-    uniforms.0.write_buffer(&*device, &*queue);
+    uniform_buffer.0.write_buffer(&*device, &*queue);
 }
 
 #[derive(Resource)]
@@ -146,10 +137,10 @@ impl Deref for CameraBindGroup {
     }
 }
 
-pub fn queue_camera_bind_group(
+fn queue_camera_bind_group(
     mut commands: Commands,
     bind_group_layout: Res<CameraBindGroupLayout>,
-    uniforms: Res<CameraUniforms>,
+    uniform_buffer: Res<CameraUniformBuffer>,
     device: Res<RenderDevice>,
 ) {
     commands.insert_resource(CameraBindGroup(device.create_bind_group(
@@ -158,7 +149,7 @@ pub fn queue_camera_bind_group(
             layout: &bind_group_layout,
             entries: &[BindGroupEntry {
                 binding: 0,
-                resource: uniforms.binding().unwrap(),
+                resource: uniform_buffer.0.binding().unwrap(),
             }],
         },
     )));

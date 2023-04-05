@@ -1,7 +1,8 @@
 use super::{
-    pipelines::{Pipelines, ShapesMeta},
-    camera::{CameraUniformIndex, CameraBindGroup},
+    camera::{CameraBindGroup, CameraUniformIndex},
+    pipelines::Pipelines,
     ray_marching_pipeline::RayMarchingPipeline,
+    shape::ShapesBindGroup,
     Textures,
 };
 use bevy::{
@@ -9,7 +10,6 @@ use bevy::{
     render::{
         camera::ExtractedCamera,
         render_graph::{Node, SlotInfo, SlotType},
-        render_phase::TrackedRenderPass,
         render_resource::*,
         view::ViewTarget,
     },
@@ -56,7 +56,7 @@ impl Node for RayMarchingNode {
             .get_render_pipeline(pipelines.filter_pipeline)
             .unwrap();
         let camera_bind_group = world.resource::<CameraBindGroup>();
-        let shapes = world.resource::<ShapesMeta>();
+        let shapes_bind_group = world.resource::<ShapesBindGroup>();
 
         //        let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
         //            label: Some("Test Pass"),
@@ -83,7 +83,7 @@ impl Node for RayMarchingNode {
 
             render_pass.set_render_pipeline(raymarching_pipeline);
             render_pass.set_bind_group(0, camera_bind_group, &[index.index()]);
-            render_pass.set_bind_group(1, shapes.bind_group(), &[]);
+            render_pass.set_bind_group(1, shapes_bind_group, &[]);
             render_pass.draw(0..3, 0..1);
         }
 

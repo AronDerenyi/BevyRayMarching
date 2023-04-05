@@ -3,20 +3,17 @@ mod node;
 mod pipelines;
 mod ray_marching_pipeline;
 mod shaders;
-pub mod shapes;
+mod shape;
 
+pub use self::shape::Shape;
 use self::{
-    camera::CameraPlugin,
-    node::RayMarchingNode,
-    pipelines::{Pipelines, ShapesMeta},
-    ray_marching_pipeline::RayMarchingPipeline,
-    shapes::ExtractedShape,
+    camera::CameraPlugin, node::RayMarchingNode, pipelines::Pipelines,
+    ray_marching_pipeline::RayMarchingPipeline, shape::ShapePlugin,
 };
 use bevy::{
     core_pipeline::core_3d,
     prelude::*,
     render::{
-        extract_component::ExtractComponentPlugin,
         render_graph::RenderGraph,
         render_resource::{
             Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
@@ -35,14 +32,12 @@ impl Plugin for RayMarchingPlugin {
         shaders::load_shaders(app);
 
         app.add_plugin(CameraPlugin);
-        app.add_plugin(ExtractComponentPlugin::<ExtractedShape>::default());
+        app.add_plugin(ShapePlugin);
 
         let render_app = &mut app.sub_app_mut(RenderApp);
         render_app
             .init_resource::<Pipelines>()
-            .init_resource::<ShapesMeta>()
             .init_resource::<RayMarchingPipeline>()
-            .add_system(shapes::prepare_shapes.in_set(RenderSet::Prepare))
             .add_system(prepare_textures.in_set(RenderSet::Prepare))
             .add_system(
                 ray_marching_pipeline::queue_ray_marching_pipeline.in_set(RenderSet::Queue),

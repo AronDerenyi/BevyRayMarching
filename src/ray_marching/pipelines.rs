@@ -15,7 +15,6 @@ use super::shaders;
 
 #[derive(Resource, Debug)]
 pub struct Pipelines {
-    pub shapes_bind_layout: BindGroupLayout,
     pub filter_bind_layout: BindGroupLayout,
     pub filter_pipeline: CachedRenderPipelineId,
     pub sampler: Sampler,
@@ -24,20 +23,6 @@ pub struct Pipelines {
 impl FromWorld for Pipelines {
     fn from_world(world: &mut World) -> Self {
         let device = world.resource::<RenderDevice>();
-
-        let shapes_bind_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: "Shapes bind group layout".into(),
-            entries: &[BindGroupLayoutEntry {
-                binding: 0,
-                visibility: ShaderStages::FRAGMENT,
-                ty: BindingType::Buffer {
-                    ty: BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: Some(Shapes::min_size()),
-                },
-                count: None,
-            }],
-        });
 
         let filter_bind_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: "Filter bind group layout".into(),
@@ -91,68 +76,9 @@ impl FromWorld for Pipelines {
         });
 
         Self {
-            shapes_bind_layout,
             filter_bind_layout,
             filter_pipeline,
             sampler,
         }
-    }
-}
-
-#[derive(ShaderType, Clone, Default)]
-pub(super) struct Transform {
-    pub inv_transform: Mat4,
-    pub min_scale: f32,
-}
-
-#[derive(ShaderType, Clone, Default)]
-pub(super) struct Shapes {
-    pub plane: Transform,
-    pub spheres: [Transform; Shapes::SPHERES],
-    pub cubes: [Transform; Shapes::CUBES],
-}
-
-impl Shapes {
-    pub const SPHERES: usize = 2;
-    pub const CUBES: usize = 1;
-}
-
-#[derive(Resource)]
-pub(super) struct ShapesMeta {
-    uniform: UniformBuffer<Shapes>,
-    bind_layout: BindGroupLayout,
-    bind_group: Option<BindGroup>,
-}
-
-impl FromWorld for ShapesMeta {
-    fn from_world(world: &mut World) -> Self {
-        let pipelines = world.resource::<Pipelines>();
-        Self {
-            uniform: default(),
-            bind_layout: pipelines.shapes_bind_layout.clone(),
-            bind_group: None,
-        }
-    }
-}
-
-impl ShapesMeta {
-    pub fn set(&mut self, shapes: Shapes) {
-        self.uniform.set(shapes);
-    }
-
-    pub fn write(&mut self, device: &RenderDevice, queue: &RenderQueue) {
-        self.uniform.write_buffer(device, queue);
-        self.bind_group = Some(device.create_bind_group(&BindGroupDescriptor {
-            label: "Shapes bind group".into(),
-            layout: &self.bind_layout,
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: self.uniform.binding().unwrap().clone(),
-            }],
-        }));
-    }
-
-    pub fn bind_group(&self) -> &BindGroup {
-        self.bind_group.as_ref().expect("No shapes set yet")
     }
 }
