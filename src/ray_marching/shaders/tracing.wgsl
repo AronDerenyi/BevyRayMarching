@@ -40,36 +40,38 @@ var<uniform> shapes: Shapes;
 #endif
 
 @fragment
-fn main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
+fn main(@location(0) uv: vec2<f32>) ->
+#ifdef LAST_STAGE
+@location(0) vec4<f32>
+#else
+@location(0) f32
+#endif
+{
     let pixel = uv / stage.texel_size;
     let m = ((floor(pixel.x) + floor(pixel.y)) % 2.0);
 
     #ifndef FIRST_STAGE
-        let input = textureSample(input_texture, input_sampler, uv).rgba;
+        let input = textureSample(input_texture, input_sampler, uv).r;
     #endif
 
     if m > 0.0 {
         #ifdef FIRST_STAGE
-            //return vec4(0.0, 0.0, 1.0, 1.0);
-            return vec4(0.0, 1.0, 0.0, 1.0);
+            return 1.0;
         #else
             #ifdef LAST_STAGE
-                //return vec4(1.0, input.gba);
-                return vec4(input.r, input.g * 0.5 + 0.5, input.ba);
+                return vec4(0.0, input * 0.5 + 0.5, 0.0, 1.0);
             #else
-                return vec4(input.r, input.g * 0.5 + 0.5, input.ba);
+                return input * 0.5 + 0.5;
             #endif
         #endif
     } else {
         #ifdef FIRST_STAGE
-            //return vec4(0.0, 0.0, 0.0, 1.0);
-            return vec4(0.0, 0.0, 0.0, 1.0);
+            return 0.0;
         #else
             #ifdef LAST_STAGE
-                //return vec4(0.0, input.gba);
-                return vec4(input.r, input.g * 0.5 + 0.0, input.ba);
+                return vec4(0.0, input * 0.5, 0.0, 1.0);
             #else
-                return vec4(input.r, input.g * 0.5 + 0.0, input.ba);
+                return input * 0.5;
             #endif
         #endif
     }

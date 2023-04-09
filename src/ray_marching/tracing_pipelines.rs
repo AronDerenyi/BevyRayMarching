@@ -43,6 +43,7 @@ pub fn queue_tracing_pipeline(
                 stage_bind_group_layouts.first.clone(),
             ],
             vec!["FIRST_STAGE".into()],
+            TextureFormat::R32Float,
         ));
     }
     if pipeline.mid_id == CachedRenderPipelineId::INVALID {
@@ -54,6 +55,7 @@ pub fn queue_tracing_pipeline(
                 stage_bind_group_layouts.mid.clone(),
             ],
             vec![],
+            TextureFormat::R32Float,
         ));
     }
     if pipeline.last_id == CachedRenderPipelineId::INVALID {
@@ -65,6 +67,7 @@ pub fn queue_tracing_pipeline(
                 stage_bind_group_layouts.last.clone(),
             ],
             vec!["LAST_STAGE".into()],
+            TextureFormat::Rgba8Unorm,
         ));
     }
 }
@@ -73,6 +76,7 @@ fn specialized_descriptor(
     label: &'static str,
     layout: Vec<BindGroupLayout>,
     defs: Vec<ShaderDefVal>,
+    target_format: TextureFormat,
 ) -> RenderPipelineDescriptor {
     RenderPipelineDescriptor {
         label: Some(label.into()),
@@ -84,7 +88,7 @@ fn specialized_descriptor(
             shader_defs: defs,
             entry_point: "main".into(),
             targets: vec![Some(ColorTargetState {
-                format: TextureFormat::Rgba8Unorm,
+                format: target_format,
                 blend: None,
                 write_mask: ColorWrites::ALL,
             })],

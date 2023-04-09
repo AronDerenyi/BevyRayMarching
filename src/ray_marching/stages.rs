@@ -81,7 +81,7 @@ fn prepare_stages(
                     mip_level_count: 1,
                     sample_count: 1,
                     dimension: TextureDimension::D2,
-                    format: TextureFormat::Rgba8Unorm,
+                    format: TextureFormat::R32Float,
                     usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
                     view_formats: &[],
                 };
@@ -137,6 +137,7 @@ fn prepare_stages(
                             height,
                             depth_or_array_layers: 1,
                         },
+                        format: TextureFormat::Rgba8Unorm,
                         ..descriptor
                     },
                 );
