@@ -1,9 +1,9 @@
 use super::{
     camera::{CameraBindGroup, CameraUniformIndex},
-    pipelines::Pipelines,
-    ray_marching_pipeline::RayMarchingPipeline,
     shape::ShapesBindGroup,
-    Textures,
+    stages::{StageBindGroups, StageIndices, StageTextures},
+    tracing_pipelines::TracingPipelines,
+    upsampling_pipeline::UpsamplingPipeline,
 };
 use bevy::{
     prelude::*,
@@ -17,10 +17,12 @@ use bevy::{
 
 pub(super) struct RayMarchingNode {
     view_query: QueryState<(
-        &'static Textures,
         &'static ExtractedCamera,
         &'static ViewTarget,
         &'static CameraUniformIndex,
+        &'static StageTextures,
+        &'static StageIndices,
+        &'static StageBindGroups,
     )>,
 }
 
@@ -42,36 +44,42 @@ impl Node for RayMarchingNode {
         render_context: &mut bevy::render::renderer::RenderContext,
         world: &World,
     ) -> Result<(), bevy::render::render_graph::NodeRunError> {
+        let pipeline_cache = world.resource::<PipelineCache>();
+        let tracing_pipelines = world.resource::<TracingPipelines>();
+        let upsampling_pipeline = world.resource::<UpsamplingPipeline>();
         let view_entity = graph.get_input_entity(Self::IN_VIEW)?;
-        let Ok((textures, camera, target, index)) = self.view_query.get_manual(world, view_entity) else {
+
+        let (
+            Some(first_tracing_pipeline),
+            Some(mid_tracing_pipeline),
+            Some(last_tracing_pipeline),
+            Some(upsampling_pipeline),
+            Ok((
+                camera,
+                target,
+                camera_index,
+                stage_textures,
+                stage_indices,
+                stage_bind_groups,
+            )),
+        ) = (
+            pipeline_cache.get_render_pipeline(tracing_pipelines.first_id),
+            pipeline_cache.get_render_pipeline(tracing_pipelines.mid_id),
+            pipeline_cache.get_render_pipeline(tracing_pipelines.last_id),
+            pipeline_cache.get_render_pipeline(upsampling_pipeline.id),
+            self.view_query.get_manual(world, view_entity),
+        ) else {
             return Ok(());
         };
 
-        let pipeline_cache = world.resource::<PipelineCache>();
-        let pipelines = world.resource::<Pipelines>();
-        let raymarching_pipeline = pipeline_cache
-            .get_render_pipeline(world.resource::<RayMarchingPipeline>().pipeline_id)
-            .unwrap();
-        let filter_pipeline = pipeline_cache
-            .get_render_pipeline(pipelines.filter_pipeline)
-            .unwrap();
         let camera_bind_group = world.resource::<CameraBindGroup>();
         let shapes_bind_group = world.resource::<ShapesBindGroup>();
 
-        //        let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
-        //            label: Some("Test Pass"),
-        //            color_attachments: &[Some(target.get_unsampled_color_attachment(Operations {
-        //                load: LoadOp::Load,
-        //                store: true,
-        //            }))],
-        //            depth_stencil_attachment: None,
-        //        });
-
         {
             let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
-                label: Some("Test Pass"),
+                label: Some("first_tracing_render_pass"),
                 color_attachments: &[Some(RenderPassColorAttachment {
-                    view: &textures.texture.default_view,
+                    view: &stage_textures.first.default_view,
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Load,
@@ -81,35 +89,58 @@ impl Node for RayMarchingNode {
                 depth_stencil_attachment: None,
             });
 
-            render_pass.set_render_pipeline(raymarching_pipeline);
-            render_pass.set_bind_group(0, camera_bind_group, &[index.index()]);
+            render_pass.set_render_pipeline(first_tracing_pipeline);
+            render_pass.set_bind_group(0, camera_bind_group, &[camera_index.index()]);
             render_pass.set_bind_group(1, shapes_bind_group, &[]);
+            render_pass.set_bind_group(2, &stage_bind_groups.first, &[stage_indices.first]);
+            render_pass.draw(0..3, 0..1);
+        }
+
+        for (index, texture) in stage_textures.mid.iter().enumerate() {
+            let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
+                label: Some("mid_tracing_render_pass"),
+                color_attachments: &[Some(RenderPassColorAttachment {
+                    view: &texture.default_view,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Load,
+                        store: true,
+                    },
+                })],
+                depth_stencil_attachment: None,
+            });
+
+            render_pass.set_render_pipeline(mid_tracing_pipeline);
+            render_pass.set_bind_group(0, camera_bind_group, &[camera_index.index()]);
+            render_pass.set_bind_group(1, shapes_bind_group, &[]);
+            render_pass.set_bind_group(2, &stage_bind_groups.mid[index], &[stage_indices.mid[index]]);
             render_pass.draw(0..3, 0..1);
         }
 
         {
-            let bind_group =
-                render_context
-                    .render_device()
-                    .create_bind_group(&BindGroupDescriptor {
-                        label: Some("filter bind group"),
-                        layout: &pipelines.filter_bind_layout,
-                        entries: &[
-                            BindGroupEntry {
-                                binding: 0,
-                                resource: BindingResource::TextureView(
-                                    &textures.texture.default_view,
-                                ),
-                            },
-                            BindGroupEntry {
-                                binding: 1,
-                                resource: BindingResource::Sampler(&pipelines.sampler),
-                            },
-                        ],
-                    });
-
             let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
-                label: Some("Filter Pass"),
+                label: Some("last_tracing_render_pass"),
+                color_attachments: &[Some(RenderPassColorAttachment {
+                    view: &stage_textures.last.default_view,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Load,
+                        store: true,
+                    },
+                })],
+                depth_stencil_attachment: None,
+            });
+
+            render_pass.set_render_pipeline(last_tracing_pipeline);
+            render_pass.set_bind_group(0, camera_bind_group, &[camera_index.index()]);
+            render_pass.set_bind_group(1, shapes_bind_group, &[]);
+            render_pass.set_bind_group(2, &stage_bind_groups.last, &[stage_indices.last]);
+            render_pass.draw(0..3, 0..1);
+        }
+
+        {
+            let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
+                label: Some("upsampling_render_pass"),
                 color_attachments: &[Some(target.get_unsampled_color_attachment(Operations {
                     load: LoadOp::Load,
                     store: true,
@@ -121,37 +152,10 @@ impl Node for RayMarchingNode {
                 render_pass.set_camera_viewport(viewport);
             }
 
-            render_pass.set_render_pipeline(filter_pipeline);
-            render_pass.set_bind_group(0, &bind_group, &[]);
+            render_pass.set_render_pipeline(upsampling_pipeline);
+            render_pass.set_bind_group(0, &stage_bind_groups.upsampling, &[]);
             render_pass.draw(0..3, 0..1);
         }
-
-        //        let mut render_pass =
-        //            TrackedRenderPass::new(render_context.command_encoder.begin_render_pass(
-        //                    &RenderPassDescriptor {
-        //                        label: Some("Test Pass"),
-        //                        color_attachments: &[Some(RenderPassColorAttachment {
-        //                            view: target.main_texture(),
-        //                            resolve_target: None,
-        //                            ops: Operations {
-        //                                load: LoadOp::Load,
-        //                                store: true,
-        //                            },
-        //                        })],
-        //                        depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-        //                            view: target.main_texture(),
-        //                            depth_ops: (),
-        //                            stencil_ops: ()
-        //                        }),
-        //                    },
-        //            ));
-        //
-        //        if let Some(viewport) = camera.viewport.as_ref() {
-        //            render_pass.set_camera_viewport(viewport);
-        //        }
-        //
-        //        render_pass.set_render_pipeline(pipelines.write_pipeline(pipeline_cache));
-        //        render_pass.draw(0..3, 0..1);
 
         Ok(())
     }

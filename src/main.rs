@@ -64,11 +64,11 @@ fn setup(mut commands: Commands) {
         Camera3dBundle {
             projection: Projection::Perspective(PerspectiveProjection { ..default() }),
             camera: Camera {
-                //                            viewport: Some(Viewport {
-                //                                physical_position: UVec2::new(0, 0),
-                //                                physical_size: UVec2::new(300, 300),
-                //                                ..default()
-                //                            }),
+//                viewport: Some(Viewport {
+//                    physical_position: UVec2::new(0, 0),
+//                    physical_size: UVec2::new(300, 300),
+//                    ..default()
+//                }),
                 ..default()
             },
             ..default()

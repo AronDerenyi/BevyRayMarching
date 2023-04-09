@@ -1,27 +1,24 @@
 mod camera;
 mod node;
-mod pipelines;
-mod ray_marching_pipeline;
 mod shaders;
 mod shape;
+mod stages;
+mod tracing_pipelines;
+mod upsampling_pipeline;
 
 pub use self::shape::Shape;
 use self::{
-    camera::CameraPlugin, node::RayMarchingNode, pipelines::Pipelines,
-    ray_marching_pipeline::RayMarchingPipeline, shape::ShapePlugin,
+    camera::CameraPlugin,
+    node::RayMarchingNode,
+    shape::ShapePlugin,
+    stages::StagesPlugin,
+    tracing_pipelines::{queue_tracing_pipeline, TracingPipelines},
+    upsampling_pipeline::UpsamplingPipeline,
 };
 use bevy::{
     core_pipeline::core_3d,
     prelude::*,
-    render::{
-        render_graph::RenderGraph,
-        render_resource::{
-            Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
-        },
-        renderer::RenderDevice,
-        texture::{CachedTexture, TextureCache},
-        RenderApp, RenderSet,
-    },
+    render::{render_graph::RenderGraph, RenderApp, RenderSet},
 };
 
 #[derive(Default)]
@@ -31,22 +28,19 @@ impl Plugin for RayMarchingPlugin {
     fn build(&self, app: &mut App) {
         shaders::load_shaders(app);
 
-        app.add_plugin(CameraPlugin);
-        app.add_plugin(ShapePlugin);
+        app.add_plugin(CameraPlugin)
+            .add_plugin(ShapePlugin)
+            .add_plugin(StagesPlugin);
 
         let render_app = &mut app.sub_app_mut(RenderApp);
         render_app
-            .init_resource::<Pipelines>()
-            .init_resource::<RayMarchingPipeline>()
-            .add_system(prepare_textures.in_set(RenderSet::Prepare))
-            .add_system(
-                ray_marching_pipeline::queue_ray_marching_pipeline.in_set(RenderSet::Queue),
-            );
+            .init_resource::<TracingPipelines>()
+            .init_resource::<UpsamplingPipeline>()
+            .add_system(queue_tracing_pipeline.in_set(RenderSet::Queue));
 
         let world = &mut render_app.world;
         let node = RayMarchingNode::new(world);
 
-        //        let mut graph = world.resource_mut::<RenderGraph>();
         let graph_3d = world
             .resource_mut::<RenderGraph>()
             .into_inner()
@@ -63,50 +57,6 @@ impl Plugin for RayMarchingPlugin {
         graph_3d.add_node_edge(core_3d::graph::node::MAIN_PASS, RayMarchingNode::NAME);
     }
 }
-
-#[derive(Component)]
-struct Textures {
-    texture: CachedTexture,
-}
-
-fn prepare_textures(
-    mut commands: Commands,
-    mut texture_cache: ResMut<TextureCache>,
-    render_device: Res<RenderDevice>,
-    cameras: Query<(Entity, &bevy::render::camera::ExtractedCamera)>,
-) {
-    for (entity, camera) in &cameras {
-        if let Some(UVec2 {
-            x: width,
-            y: height,
-        }) = camera.physical_viewport_size
-        {
-            let descriptor = TextureDescriptor {
-                label: Some("Downsample texture"),
-                size: Extent3d {
-                    width: width / 4,
-                    height: height / 4,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: TextureDimension::D2,
-                format: TextureFormat::Rgba8Unorm,
-                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
-                view_formats: &[],
-            };
-            commands.entity(entity).insert(Textures {
-                texture: texture_cache.get(&render_device, descriptor),
-            });
-        }
-    }
-}
-
-//fn queue_bind_group(mut commands: Commands, views: Query<(Entity, &ViewTarget)>) {
-//    for (entity, target) in views.iter() {
-//        commands.entity(entity).insert(bundle)
-//    }
-//}
 
 /*
 
@@ -132,5 +82,20 @@ pipeline:
     post processing
 
 bind group
+
+
+
+
+tps: target pixel size
+pt: previous texture
+
+
+first -> inter -> inter -> inter -> last
+tps      tps      tps      tps      tps
+         pt       pt       pt       pt
+
+
+
+
 
 */
