@@ -65,12 +65,22 @@ fn prepare_stages(
             {
                 let width = width / 2;
                 let height = height / 2;
-                let scaling: u32 = 4;
+                let scaling: u32 = 3;
 
-                // how many 4x4 divisions are possible
-                // since the last stage is the original size, the first stage will be bigger or equal to the scaling factor
-                // but at least 2 stages are required (first, last)
-                let stages = u32::min(width, height).ilog(scaling).max(2) as usize;
+                let (min_width, min_height) = if height < width {
+                    (
+                        ((scaling * width) as f32 / height as f32).round() as u32,
+                        scaling,
+                    )
+                } else {
+                    (
+                        scaling,
+                        ((scaling * height) as f32 / width as f32).round() as u32,
+                    )
+                };
+
+                let mid_stages = u32::min(width / min_width, height / min_height).ilog(scaling);
+
                 let descriptor = TextureDescriptor {
                     label: Some("stage_texture"),
                     size: Extent3d {
@@ -86,9 +96,8 @@ fn prepare_stages(
                     view_formats: &[],
                 };
 
-                let scale = scaling.pow((stages - 1) as u32);
-                let w = width / scale;
-                let h = height / scale;
+                let w = min_width;
+                let h = min_height;
                 let first_index = uniform_buffer.0.push(StageUniform {
                     texel_size: Vec2::new(1.0 / w as f32, 1.0 / h as f32),
                 });
@@ -104,12 +113,12 @@ fn prepare_stages(
                     },
                 );
 
-                let mut mid_indices = Vec::<u32>::with_capacity(stages - 2);
-                let mut mid_textures = Vec::<CachedTexture>::with_capacity(stages - 2);
-                for stage in 1..(stages - 1) {
-                    let scale = scaling.pow((stages - stage - 1) as u32);
-                    let w = width / scale;
-                    let h = height / scale;
+                let mut mid_indices = Vec::<u32>::with_capacity(mid_stages as usize);
+                let mut mid_textures = Vec::<CachedTexture>::with_capacity(mid_stages as usize);
+                for stage in 1..=mid_stages {
+                    let scale = scaling.pow(stage);
+                    let w = min_width * scale;
+                    let h = min_height * scale;
                     mid_indices.push(uniform_buffer.0.push(StageUniform {
                         texel_size: Vec2::new(1.0 / w as f32, 1.0 / h as f32),
                     }));
