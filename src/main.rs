@@ -24,6 +24,9 @@ struct OrbitControls {
     zoom: f32,
 }
 
+#[derive(Component)]
+struct Bouncing;
+
 fn main() {
     //    WindowPlugin {
     //        window: WindowDescriptor {
@@ -44,6 +47,7 @@ fn main() {
         .add_startup_system(setup)
         .add_system(orbit_controller)
         .add_system(orbit_updater)
+        .add_system(bouncing_updater)
         .add_system(gui)
         .run();
 }
@@ -64,11 +68,11 @@ fn setup(mut commands: Commands) {
         Camera3dBundle {
             projection: Projection::Perspective(PerspectiveProjection { ..default() }),
             camera: Camera {
-//                viewport: Some(Viewport {
-//                    physical_position: UVec2::new(0, 0),
-//                    physical_size: UVec2::new(300, 300),
-//                    ..default()
-//                }),
+                //                viewport: Some(Viewport {
+                //                    physical_position: UVec2::new(0, 0),
+                //                    physical_size: UVec2::new(300, 300),
+                //                    ..default()
+                //                }),
                 ..default()
             },
             ..default()
@@ -83,7 +87,7 @@ fn setup(mut commands: Commands) {
     commands.spawn((
         Plane,
         Transform {
-            translation: Vec3::new(0.0, 0.0, -3.0),
+            translation: Vec3::new(0.0, 0.0, -0.0),
             ..default()
         },
         GlobalTransform::IDENTITY,
@@ -127,6 +131,7 @@ fn setup(mut commands: Commands) {
                 Sphere { radius: 1.0 },
                 Transform::from_xyz(0.0, 1.0, 0.0),
                 GlobalTransform::IDENTITY,
+                Bouncing,
             ));
         });
 }
@@ -154,5 +159,11 @@ fn orbit_updater(mut orbits: Query<(&mut Transform, &OrbitControls)>) {
             Quat::from_rotation_z(orbit.rotation.x) * Quat::from_rotation_x(orbit.rotation.y);
         transform.translation = orbit.pivot + rotation * Vec3::Z * orbit.zoom;
         transform.rotation = rotation;
+    }
+}
+
+fn bouncing_updater(mut transforms: Query<&mut Transform, With<Bouncing>>, time: Res<Time>) {
+    for mut transform in transforms.iter_mut() {
+        transform.translation.z = time.elapsed_seconds().sin() + 1.0;
     }
 }

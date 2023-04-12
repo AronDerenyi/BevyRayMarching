@@ -90,44 +90,36 @@ fn main(@location(0) uv: vec2<f32>) ->
 
         if collided {
             let normal = normal(pos + dir * distance);
-            return vec4((normal + vec3(1.0)) * 0.5, 1.0);
+            let ambient_occlusion = ambient_occlusion(pos + dir * distance, normal);
+            return vec4(vec3(0.6 + ambient_occlusion * 0.4), 1.0);
         } else {
             return vec4(vec3(0.0), 1.0);
         }
     #endif
 }
 
-fn length_squared(v: vec3<f32>) -> f32 {
-    return dot(v, v);
+// from: https://www.alanzucconi.com/2016/07/01/ambient-occlusion/
+fn ambient_occlusion(pos: vec3<f32>, normal: vec3<f32>) -> f32 {
+    // With the burnt in step size: 0.1
+    // Unwrapped loop for 4 iterations
+    // Precomputed inverse max_sum for 4 iterations:
+    // 1 / ((1 / 2^0 + 2 / 2^1 + 3 / 2^2 + 4 / 2^3) * 0.1) = 3.07692307692
+
+    var sum = max(0.0, sdf(pos + normal * 0.1));
+    sum += max(0.0, sdf(pos + normal * 0.2)) * 0.5;
+    sum += max(0.0, sdf(pos + normal * 0.3)) * 0.25;
+    sum += max(0.0, sdf(pos + normal * 0.4)) * 0.125;
+    return sum * 3.07692307692;
 }
 
-fn get_direction(uv: vec2<f32>) -> vec3<f32> {
+fn normal(pos: vec3<f32>) -> vec3<f32> {
+    var epsilon = 0.001;
     return normalize(
-        camera.right * uv.x +
-        camera.up * uv.y +
-        camera.forward
+        vec3(1.0, -1.0, -1.0) * sdf(pos + vec3(1.0, -1.0, -1.0) * epsilon) +
+        vec3(-1.0, 1.0, -1.0) * sdf(pos + vec3(-1.0, 1.0, -1.0) * epsilon) +
+        vec3(-1.0, -1.0, 1.0) * sdf(pos + vec3(-1.0, -1.0, 1.0) * epsilon) +
+        vec3(1.0, 1.0, 1.0) * sdf(pos + vec3(1.0, 1.0, 1.0) * epsilon)
     );
-}
-
-fn pos_transform(pnt: vec3<f32>, transform: mat4x4<f32>) -> vec3<f32> {
-    return (transform * vec4(pnt, 1.0)).xyz;
-}
-
-fn dir_transform(pnt: vec3<f32>, transform: mat4x4<f32>) -> vec3<f32> {
-    return (transform * vec4(pnt, 0.0)).xyz;
-}
-
-fn sdf_plane(pnt: vec3<f32>) -> f32 {
-    return pnt.z;
-}
-
-fn sdf_sphere(radius: f32, pnt: vec3<f32>) -> f32 {
-    return (length(pnt) - radius);
-}
-
-fn sdf_cube(size: vec3<f32>, pnt: vec3<f32>) -> f32 {
-    var q = abs(pnt) - size;
-    return length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0);
 }
 
 fn sdf(pos: vec3<f32>) -> f32 {
@@ -162,12 +154,37 @@ fn sdf(pos: vec3<f32>) -> f32 {
     return dist;
 }
 
-fn normal(pos: vec3<f32>) -> vec3<f32> {
-    var epsilon = 0.001;
+fn sdf_plane(pnt: vec3<f32>) -> f32 {
+    return pnt.z;
+}
+
+fn sdf_sphere(radius: f32, pnt: vec3<f32>) -> f32 {
+    return (length(pnt) - radius);
+}
+
+fn sdf_cube(size: vec3<f32>, pnt: vec3<f32>) -> f32 {
+    var q = abs(pnt) - size;
+    return length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+
+
+
+fn get_direction(uv: vec2<f32>) -> vec3<f32> {
     return normalize(
-        vec3(1.0, -1.0, -1.0) * sdf(pos + vec3(1.0, -1.0, -1.0) * epsilon) +
-        vec3(-1.0, 1.0, -1.0) * sdf(pos + vec3(-1.0, 1.0, -1.0) * epsilon) +
-        vec3(-1.0, -1.0, 1.0) * sdf(pos + vec3(-1.0, -1.0, 1.0) * epsilon) +
-        vec3(1.0, 1.0, 1.0) * sdf(pos + vec3(1.0, 1.0, 1.0) * epsilon)
+        camera.right * uv.x +
+        camera.up * uv.y +
+        camera.forward
     );
+}
+
+fn length_squared(v: vec3<f32>) -> f32 {
+    return dot(v, v);
+}
+
+fn pos_transform(pnt: vec3<f32>, transform: mat4x4<f32>) -> vec3<f32> {
+    return (transform * vec4(pnt, 1.0)).xyz;
+}
+
+fn dir_transform(pnt: vec3<f32>, transform: mat4x4<f32>) -> vec3<f32> {
+    return (transform * vec4(pnt, 0.0)).xyz;
 }
