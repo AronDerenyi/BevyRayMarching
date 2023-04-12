@@ -28,11 +28,25 @@ impl Plugin for ShapePlugin {
     }
 }
 
-#[derive(Component, Clone)]
-pub enum Shape {
+#[derive(Component, Clone, Default)]
+pub struct Shape {
+    pub shape_type: ShapeType,
+    pub negative: bool,
+}
+
+#[derive(Clone)]
+pub enum ShapeType {
     Plane,
     Sphere { radius: f32 },
     Cube { size: Vec3 },
+    Union,
+    Intersection,
+}
+
+impl Default for ShapeType {
+    fn default() -> Self {
+        ShapeType::Union
+    }
 }
 
 pub const MAX_PLANES: usize = 4;
@@ -41,7 +55,8 @@ pub const MAX_CUBES: usize = 16;
 
 #[derive(Component, Clone)]
 struct ExtractedShape {
-    shape: Shape,
+    shape_type: ShapeType,
+    negative: bool,
     transform: GlobalTransform,
 }
 
@@ -52,7 +67,8 @@ impl ExtractComponent for ExtractedShape {
 
     fn extract_component((shape, transform): QueryItem<'_, Self::Query>) -> Option<Self> {
         Some(Self {
-            shape: shape.clone(),
+            shape_type: shape.shape_type.clone(),
+            negative: shape.negative,
             transform: transform.clone(),
         })
     }
@@ -98,8 +114,8 @@ fn prepare_shapes(
             inv_transform: shape.transform.compute_matrix().inverse(),
             min_scale,
         };
-        match shape.shape {
-            Shape::Plane => {
+        match shape.shape_type {
+            ShapeType::Plane => {
                 if plane_index < MAX_PLANES {
                     uniform.planes[plane_index] = transform;
                     plane_index += 1;
@@ -107,7 +123,7 @@ fn prepare_shapes(
                     warn!("Too many planes are in the scene");
                 }
             }
-            Shape::Sphere { radius: _ } => {
+            ShapeType::Sphere { radius: _ } => {
                 if sphere_index < MAX_SPHERES {
                     uniform.spheres[sphere_index] = transform;
                     sphere_index += 1;
@@ -115,13 +131,16 @@ fn prepare_shapes(
                     warn!("Too many spheres are in the scene");
                 }
             }
-            Shape::Cube { size: _ } => {
+            ShapeType::Cube { size: _ } => {
                 if cube_index < MAX_CUBES {
                     uniform.cubes[cube_index] = transform;
                     cube_index += 1;
                 } else {
                     warn!("Too many cubes are in the scene");
                 }
+            }
+            _ => {
+                warn!("Unsupported shape type");
             }
         }
     }

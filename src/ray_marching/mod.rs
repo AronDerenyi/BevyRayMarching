@@ -6,7 +6,7 @@ mod stages;
 mod tracing_pipelines;
 mod upsampling_pipeline;
 
-pub use self::shape::Shape;
+pub use self::shape::{Shape, ShapeType};
 use self::{
     camera::CameraPlugin,
     node::RayMarchingNode,
