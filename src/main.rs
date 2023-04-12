@@ -122,7 +122,7 @@ fn setup(mut commands: Commands) {
             builder.spawn((
                 Shape {
                     shape_type: Cube {
-                        size: Vec3::new(1.0, 1.0, 1.0),
+                        size: Vec3::new(1.0, 2.0, 1.0),
                     },
                     ..default()
                 },
@@ -151,7 +151,7 @@ fn setup(mut commands: Commands) {
         .with_children(|builder| {
             builder.spawn((
                 Shape {
-                    shape_type: Sphere { radius: 1.0 },
+                    shape_type: Sphere { radius: 1.5 },
                     ..default()
                 },
                 Transform::from_xyz(0.0, 1.0, 0.0),

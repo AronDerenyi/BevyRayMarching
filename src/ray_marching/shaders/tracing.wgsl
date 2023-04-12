@@ -7,18 +7,30 @@ struct Camera {
     forward: vec3<f32>,
 };
 
-struct Transform {
-    inv_transform: mat4x4<f32>,
-    min_scale: f32,
-};
-
 struct Shapes {
     plane_count: u32,
-    planes: array<Transform, #{MAX_PLANES}>,
+    planes: array<Plane, #{MAX_PLANES}>,
     sphere_count: u32,
-    spheres: array<Transform, #{MAX_SPHERES}>,
+    spheres: array<Sphere, #{MAX_SPHERES}>,
     cube_count: u32,
-    cubes: array<Transform, #{MAX_CUBES}>,
+    cubes: array<Cube, #{MAX_CUBES}>,
+};
+
+struct Plane {
+    inv_transform: mat4x4<f32>,
+    scale: f32,
+};
+
+struct Sphere {
+    radius: f32,
+    inv_transform: mat4x4<f32>,
+    scale: f32,
+};
+
+struct Cube {
+    size: vec3<f32>,
+    inv_transform: mat4x4<f32>,
+    scale: f32,
 };
 
 struct Stage {
@@ -123,48 +135,37 @@ fn normal(pos: vec3<f32>) -> vec3<f32> {
 }
 
 fn sdf(pos: vec3<f32>) -> f32 {
-    var dist =
-        sdf_plane(pos_transform(pos, shapes.planes[0].inv_transform)) *
-        shapes.planes[0].min_scale;
+    var dist = sdf_plane(0u, pos);
 
     for (var i: u32 = 1u; i < shapes.plane_count; i = i + 1u) {
-        var plane_dist =
-            sdf_plane(pos_transform(pos, shapes.planes[i].inv_transform)) *
-            shapes.planes[i].min_scale;
-
-        dist = min(dist, plane_dist);
+        dist = min(dist, sdf_plane(i, pos));
     }
 
     for (var i: u32 = 0u; i < shapes.sphere_count; i = i + 1u) {
-        var sphere_dist =
-            sdf_sphere(1.0, pos_transform(pos, shapes.spheres[i].inv_transform)) *
-            shapes.spheres[i].min_scale;
-
-        dist = max(dist, -sphere_dist);
+        dist = min(dist, sdf_sphere(i, pos));
     }
 
     for (var i: u32 = 0u; i < shapes.cube_count; i = i + 1u) {
-        var cube_dist =
-            sdf_cube(vec3(1.0), pos_transform(pos, shapes.cubes[0].inv_transform)) *
-            shapes.cubes[0].min_scale;
-
-        dist = max(dist, -cube_dist);
+        dist = min(dist, sdf_cube(i, pos));
     }
 
     return dist;
 }
 
-fn sdf_plane(pnt: vec3<f32>) -> f32 {
-    return pnt.z;
+fn sdf_plane(id: u32, pnt: vec3<f32>) -> f32 {
+    let plane = &shapes.planes[0];
+    return pos_transform(pnt, (*plane).inv_transform).z * (*plane).scale;
 }
 
-fn sdf_sphere(radius: f32, pnt: vec3<f32>) -> f32 {
-    return (length(pnt) - radius);
+fn sdf_sphere(id: u32, pnt: vec3<f32>) -> f32 {
+    let sphere = &shapes.spheres[id];
+    return (length(pos_transform(pnt, (*sphere).inv_transform)) - (*sphere).radius) * (*sphere).scale;
 }
 
-fn sdf_cube(size: vec3<f32>, pnt: vec3<f32>) -> f32 {
-    var q = abs(pnt) - size;
-    return length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0);
+fn sdf_cube(id: u32, pnt: vec3<f32>) -> f32 {
+    let cube = &shapes.cubes[id];
+    var q = abs(pos_transform(pnt, (*cube).inv_transform)) - (*cube).size;
+    return (length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0)) * (*cube).scale;
 }
 
 

@@ -77,17 +77,31 @@ impl ExtractComponent for ExtractedShape {
 #[derive(ShaderType, Clone, Default)]
 struct ShapesUniform {
     plane_count: u32,
-    planes: [Transform; MAX_PLANES],
+    planes: [Plane; MAX_PLANES],
     sphere_count: u32,
-    spheres: [Transform; MAX_SPHERES],
+    spheres: [Sphere; MAX_SPHERES],
     cube_count: u32,
-    cubes: [Transform; MAX_CUBES],
+    cubes: [Cube; MAX_CUBES],
 }
 
 #[derive(ShaderType, Clone, Default)]
-struct Transform {
+struct Plane {
     pub inv_transform: Mat4,
-    pub min_scale: f32,
+    pub scale: f32,
+}
+
+#[derive(ShaderType, Clone, Default)]
+struct Sphere {
+    pub radius: f32,
+    pub inv_transform: Mat4,
+    pub scale: f32,
+}
+
+#[derive(ShaderType, Clone, Default)]
+struct Cube {
+    pub size: Vec3,
+    pub inv_transform: Mat4,
+    pub scale: f32,
 }
 
 #[derive(Resource, Default)]
@@ -109,31 +123,42 @@ fn prepare_shapes(
         let min_x_scale = point_plane_distance(matrix.x_axis, matrix.y_axis, matrix.z_axis);
         let min_y_scale = point_plane_distance(matrix.y_axis, matrix.x_axis, matrix.z_axis);
         let min_z_scale = point_plane_distance(matrix.z_axis, matrix.x_axis, matrix.y_axis);
-        let min_scale = min_x_scale.min(min_y_scale).min(min_z_scale);
-        let transform = Transform {
-            inv_transform: shape.transform.compute_matrix().inverse(),
-            min_scale,
-        };
+
+        let inv_transform = shape.transform.compute_matrix().inverse();
+        let scale =
+            min_x_scale.min(min_y_scale).min(min_z_scale) * if shape.negative { -1.0 } else { 1.0 };
+
         match shape.shape_type {
             ShapeType::Plane => {
                 if plane_index < MAX_PLANES {
-                    uniform.planes[plane_index] = transform;
+                    uniform.planes[plane_index] = Plane {
+                        inv_transform,
+                        scale,
+                    };
                     plane_index += 1;
                 } else {
                     warn!("Too many planes are in the scene");
                 }
             }
-            ShapeType::Sphere { radius: _ } => {
+            ShapeType::Sphere { radius } => {
                 if sphere_index < MAX_SPHERES {
-                    uniform.spheres[sphere_index] = transform;
+                    uniform.spheres[sphere_index] = Sphere {
+                        radius,
+                        inv_transform,
+                        scale,
+                    };
                     sphere_index += 1;
                 } else {
                     warn!("Too many spheres are in the scene");
                 }
             }
-            ShapeType::Cube { size: _ } => {
+            ShapeType::Cube { size } => {
                 if cube_index < MAX_CUBES {
-                    uniform.cubes[cube_index] = transform;
+                    uniform.cubes[cube_index] = Cube {
+                        size,
+                        inv_transform,
+                        scale,
+                    };
                     cube_index += 1;
                 } else {
                     warn!("Too many cubes are in the scene");
