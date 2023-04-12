@@ -92,12 +92,21 @@ fn setup(mut commands: Commands) {
         },
         GlobalTransform::IDENTITY,
     ));
+    commands.spawn((
+        Plane,
+        Transform {
+            translation: Vec3::new(0.0, 0.0, 0.0),
+            rotation: Quat::from_axis_angle(Vec3::Y, -1.57),
+            ..default()
+        },
+        GlobalTransform::IDENTITY,
+    ));
     commands
         .spawn((
             Transform {
                 //translation: Vec3::new(-2.0, -2.0, 0.0),
                 //rotation: Quat::from_euler(EulerRot::XYZ, 0.5, 0.5, 0.0),
-                scale: Vec3::new(2.0, 1.0, 1.0),
+                scale: Vec3::new(1.0, 1.0, 1.0),
                 ..default()
             },
             GlobalTransform::IDENTITY,
