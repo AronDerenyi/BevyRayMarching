@@ -35,8 +35,9 @@ pub enum Shape {
     Cube { size: Vec3 },
 }
 
-pub const MAX_SPHERES: usize = 2;
-pub const MAX_CUBES: usize = 1;
+pub const MAX_PLANES: usize = 4;
+pub const MAX_SPHERES: usize = 16;
+pub const MAX_CUBES: usize = 16;
 
 #[derive(Component, Clone)]
 struct ExtractedShape {
@@ -59,8 +60,11 @@ impl ExtractComponent for ExtractedShape {
 
 #[derive(ShaderType, Clone, Default)]
 struct ShapesUniform {
-    plane: Transform,
+    plane_count: u32,
+    planes: [Transform; MAX_PLANES],
+    sphere_count: u32,
     spheres: [Transform; MAX_SPHERES],
+    cube_count: u32,
     cubes: [Transform; MAX_CUBES],
 }
 
@@ -79,7 +83,7 @@ fn prepare_shapes(
     queue: Res<RenderQueue>,
     mut uniform_buffer: ResMut<ShapesUniformBuffer>,
 ) {
-    let mut plane_set = false;
+    let mut plane_index = 0;
     let mut sphere_index = 0;
     let mut cube_index = 0;
     let mut uniform = ShapesUniform::default();
@@ -96,11 +100,11 @@ fn prepare_shapes(
         };
         match shape.shape {
             Shape::Plane => {
-                if !plane_set {
-                    uniform.plane = transform;
-                    plane_set = true;
+                if plane_index < MAX_PLANES {
+                    uniform.planes[plane_index] = transform;
+                    plane_index += 1;
                 } else {
-                    warn!("A plane has already been set");
+                    warn!("Too many planes are in the scene");
                 }
             }
             Shape::Sphere { radius: _ } => {
@@ -121,6 +125,10 @@ fn prepare_shapes(
             }
         }
     }
+
+    uniform.plane_count = plane_index as u32;
+    uniform.sphere_count = sphere_index as u32;
+    uniform.cube_count = cube_index as u32;
 
     uniform_buffer.0.set(uniform);
     uniform_buffer.0.write_buffer(&*device, &*queue);

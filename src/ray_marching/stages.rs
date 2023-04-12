@@ -65,17 +65,18 @@ fn prepare_stages(
             {
                 let width = width / 2;
                 let height = height / 2;
-                let scaling: u32 = 3;
+                let scaling: u32 = 2;
+                let min_resolution = 16.min(width / scaling).min(height / scaling).max(1);
 
                 let (min_width, min_height) = if height < width {
                     (
-                        ((scaling * width) as f32 / height as f32).round() as u32,
-                        scaling,
+                        ((min_resolution * width) as f32 / height as f32).round() as u32,
+                        min_resolution,
                     )
                 } else {
                     (
-                        scaling,
-                        ((scaling * height) as f32 / width as f32).round() as u32,
+                        min_resolution,
+                        ((min_resolution * height) as f32 / width as f32).round() as u32,
                     )
                 };
 

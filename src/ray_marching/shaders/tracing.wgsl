@@ -13,9 +13,12 @@ struct Transform {
 };
 
 struct Shapes {
-    plane: Transform,
-    spheres: array<Transform, 2>,
-    cubes: array<Transform, 1>,
+    plane_count: u32,
+    planes: array<Transform, #{MAX_PLANES}>,
+    sphere_count: u32,
+    spheres: array<Transform, #{MAX_SPHERES}>,
+    cube_count: u32,
+    cubes: array<Transform, #{MAX_CUBES}>,
 };
 
 struct Stage {
@@ -42,37 +45,129 @@ var<uniform> shapes: Shapes;
 @fragment
 fn main(@location(0) uv: vec2<f32>) ->
 #ifdef LAST_STAGE
-@location(0) vec4<f32>
+    @location(0) vec4<f32>
 #else
-@location(0) f32
+    @location(0) f32
 #endif
 {
-    let pixel = uv / stage.texel_size;
-    let m = ((floor(pixel.x) + floor(pixel.y)) % 2.0);
+    let screen_uv = vec2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
+    let pos = camera.position;
+    let dir = get_direction(screen_uv);
+    let rad = sqrt(max(
+        max(
+            length_squared(dir - get_direction(screen_uv + vec2(-stage.texel_size.x, -stage.texel_size.y))),
+            length_squared(dir - get_direction(screen_uv + vec2(stage.texel_size.x, -stage.texel_size.y)))
+        ),
+        max(
+            length_squared(dir - get_direction(screen_uv + vec2(-stage.texel_size.x, stage.texel_size.y))),
+            length_squared(dir - get_direction(screen_uv + vec2(stage.texel_size.x, stage.texel_size.y)))
+        )
+    ));
 
-    #ifndef FIRST_STAGE
-        let input = textureSample(input_texture, input_sampler, uv).r;
+    #ifdef FIRST_STAGE
+        var distance = 0.0;
+    #else
+        var distance = textureSample(input_texture, input_sampler, uv).r;
     #endif
 
-    if m > 0.0 {
-        #ifdef FIRST_STAGE
-            return 1.0;
-        #else
-            #ifdef LAST_STAGE
-                return vec4(0.0, input * 0.5 + 0.5, 0.0, 1.0);
-            #else
-                return input * 0.5 + 0.5;
-            #endif
-        #endif
-    } else {
-        #ifdef FIRST_STAGE
-            return 0.0;
-        #else
-            #ifdef LAST_STAGE
-                return vec4(0.0, input * 0.5, 0.0, 1.0);
-            #else
-                return input * 0.5;
-            #endif
-        #endif
+    #ifndef LAST_STAGE
+        for (var i = 0u; i < 8u; i = i + 1u) {
+            let step = sdf(pos + dir * distance);
+            distance = clamp((distance + step) / (1.0 + rad), distance, 1024.0);
+        }
+        return distance;
+    #else
+        var collided = false;
+        while (distance < 1024.0) {
+            let step = sdf(pos + dir * distance);
+            if step >= distance * rad {
+                distance = distance + step;
+            } else {
+                collided = true;
+                break;
+            }
+        }
+
+        if collided {
+            let normal = normal(pos + dir * distance);
+            return vec4((normal + vec3(1.0)) * 0.5, 1.0);
+        } else {
+            return vec4(vec3(0.0), 1.0);
+        }
+    #endif
+}
+
+fn length_squared(v: vec3<f32>) -> f32 {
+    return dot(v, v);
+}
+
+fn get_direction(uv: vec2<f32>) -> vec3<f32> {
+    return normalize(
+        camera.right * uv.x +
+        camera.up * uv.y +
+        camera.forward
+    );
+}
+
+fn pos_transform(pnt: vec3<f32>, transform: mat4x4<f32>) -> vec3<f32> {
+    return (transform * vec4(pnt, 1.0)).xyz;
+}
+
+fn dir_transform(pnt: vec3<f32>, transform: mat4x4<f32>) -> vec3<f32> {
+    return (transform * vec4(pnt, 0.0)).xyz;
+}
+
+fn sdf_plane(pnt: vec3<f32>) -> f32 {
+    return pnt.z;
+}
+
+fn sdf_sphere(radius: f32, pnt: vec3<f32>) -> f32 {
+    return (length(pnt) - radius);
+}
+
+fn sdf_cube(size: vec3<f32>, pnt: vec3<f32>) -> f32 {
+    var q = abs(pnt) - size;
+    return length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+
+fn sdf(pos: vec3<f32>) -> f32 {
+    var dist =
+        sdf_plane(pos_transform(pos, shapes.planes[0].inv_transform)) *
+        shapes.planes[0].min_scale;
+
+    for (var i: u32 = 1u; i < shapes.plane_count; i = i + 1u) {
+        var plane_dist =
+            sdf_plane(pos_transform(pos, shapes.planes[i].inv_transform)) *
+            shapes.planes[i].min_scale;
+
+        dist = min(dist, plane_dist);
     }
+
+    for (var i: u32 = 0u; i < shapes.sphere_count; i = i + 1u) {
+        var sphere_dist =
+            sdf_sphere(1.0, pos_transform(pos, shapes.spheres[i].inv_transform)) *
+            shapes.spheres[i].min_scale;
+
+        dist = min(dist, sphere_dist);
+    }
+
+    for (var i: u32 = 0u; i < shapes.cube_count; i = i + 1u) {
+        var cube_dist =
+            sdf_cube(vec3(1.0), pos_transform(pos, shapes.cubes[0].inv_transform)) *
+            shapes.cubes[0].min_scale;
+
+        dist = min(dist, cube_dist);
+    }
+
+    return dist;
+}
+
+fn normal(pos: vec3<f32>) -> vec3<f32> {
+    var epsilon = 0.001;
+    return normalize(
+        vec3(1.0, -1.0, -1.0) * sdf(pos + vec3(1.0, -1.0, -1.0) * epsilon) +
+        vec3(-1.0, 1.0, -1.0) * sdf(pos + vec3(-1.0, 1.0, -1.0) * epsilon) +
+        vec3(-1.0, -1.0, 1.0) * sdf(pos + vec3(-1.0, -1.0, 1.0) * epsilon) +
+        vec3(1.0, 1.0, 1.0) * sdf(pos + vec3(1.0, 1.0, 1.0) * epsilon)
+    );
 }

@@ -1,7 +1,7 @@
 use super::{
     camera::CameraBindGroupLayout,
     shaders,
-    shape::{ShapesBindGroupLayout, MAX_CUBES, MAX_SPHERES},
+    shape::{ShapesBindGroupLayout, MAX_CUBES, MAX_PLANES, MAX_SPHERES},
     stages::StageBindGroupLayouts,
 };
 use bevy::{
@@ -42,7 +42,12 @@ pub fn queue_tracing_pipeline(
                 shapes_bind_group_layout.clone(),
                 stage_bind_group_layouts.first.clone(),
             ],
-            vec!["FIRST_STAGE".into()],
+            vec![
+                "FIRST_STAGE".into(),
+                ShaderDefVal::Int("MAX_PLANES".into(), MAX_PLANES as i32),
+                ShaderDefVal::Int("MAX_SPHERES".into(), MAX_SPHERES as i32),
+                ShaderDefVal::Int("MAX_CUBES".into(), MAX_CUBES as i32),
+            ],
             TextureFormat::R32Float,
         ));
     }
@@ -54,7 +59,11 @@ pub fn queue_tracing_pipeline(
                 shapes_bind_group_layout.clone(),
                 stage_bind_group_layouts.mid.clone(),
             ],
-            vec![],
+            vec![
+                ShaderDefVal::Int("MAX_PLANES".into(), MAX_PLANES as i32),
+                ShaderDefVal::Int("MAX_SPHERES".into(), MAX_SPHERES as i32),
+                ShaderDefVal::Int("MAX_CUBES".into(), MAX_CUBES as i32),
+            ],
             TextureFormat::R32Float,
         ));
     }
@@ -66,7 +75,12 @@ pub fn queue_tracing_pipeline(
                 shapes_bind_group_layout.clone(),
                 stage_bind_group_layouts.last.clone(),
             ],
-            vec!["LAST_STAGE".into()],
+            vec![
+                "LAST_STAGE".into(),
+                ShaderDefVal::Int("MAX_PLANES".into(), MAX_PLANES as i32),
+                ShaderDefVal::Int("MAX_SPHERES".into(), MAX_SPHERES as i32),
+                ShaderDefVal::Int("MAX_CUBES".into(), MAX_CUBES as i32),
+            ],
             TextureFormat::Rgba8Unorm,
         ));
     }
