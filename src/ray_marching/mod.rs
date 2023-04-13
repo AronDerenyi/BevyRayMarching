@@ -1,6 +1,5 @@
 mod camera;
 mod node;
-mod shaders;
 mod shape;
 mod stages;
 mod tracing;
@@ -22,8 +21,6 @@ pub struct RayMarchingPlugin;
 
 impl Plugin for RayMarchingPlugin {
     fn build(&self, app: &mut App) {
-        shaders::load_shaders(app);
-
         app.add_plugin(CameraPlugin)
             .add_plugin(ShapePlugin)
             .add_plugin(StagesPlugin)

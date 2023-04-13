@@ -14,7 +14,7 @@ use bevy::{
 };
 use std::ops::Range;
 
-const SHADER: &str = include_str!("shaders/tracing.wgsl");
+const SHADER_SOURCE: &str = include_str!("tracing.wgsl");
 
 pub struct TracingPlugin;
 
@@ -44,7 +44,7 @@ fn extract_shader(
     shape_group: Option<Res<ShapeGroup>>,
 ) {
     if let Some(shape_group) = shape_group {
-        let shader_source = format!("{}\n{}", SHADER, generate_sdf(&shape_group));
+        let shader_source = format!("{}\n{}", SHADER_SOURCE, generate_sdf(&shape_group));
         let mut shaders = main_world.resource_mut::<Assets<Shader>>();
         shader_event.send(ShaderEvent(shaders.add(Shader::from_wgsl(shader_source))));
     }

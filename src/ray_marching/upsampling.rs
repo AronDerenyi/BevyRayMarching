@@ -1,7 +1,9 @@
-use super::{shaders, stages::StageBindGroupLayouts};
+use super::stages::StageBindGroupLayouts;
 use bevy::{
+    asset::load_internal_asset,
     core_pipeline::fullscreen_vertex_shader::fullscreen_shader_vertex_state,
-    prelude::{default, FromWorld, Plugin, Resource},
+    prelude::{default, FromWorld, HandleUntyped, Plugin, Resource, Shader},
+    reflect::TypeUuid,
     render::{
         render_resource::{
             CachedRenderPipelineId, ColorTargetState, ColorWrites, FragmentState, PipelineCache,
@@ -11,10 +13,14 @@ use bevy::{
     },
 };
 
+pub const SHADER_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 698782022341067256);
+
 pub struct UpsamplingPlugin;
 
 impl Plugin for UpsamplingPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
+        load_internal_asset!(app, SHADER_HANDLE, "upsampling.wgsl", Shader::from_wgsl);
         app.sub_app_mut(RenderApp)
             .init_resource::<UpsamplingPipeline>();
     }
@@ -36,7 +42,7 @@ impl FromWorld for UpsamplingPipeline {
                 push_constant_ranges: vec![],
                 vertex: fullscreen_shader_vertex_state(),
                 fragment: Some(FragmentState {
-                    shader: shaders::UPSAMPLING_SHADER_HANDLE.typed(),
+                    shader: SHADER_HANDLE.typed(),
                     shader_defs: default(),
                     entry_point: "main".into(),
                     targets: vec![Some(ColorTargetState {
