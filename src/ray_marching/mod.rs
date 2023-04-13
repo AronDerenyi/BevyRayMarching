@@ -8,12 +8,8 @@ mod upsampling_pipeline;
 
 pub use self::shape::{Shape, ShapeType};
 use self::{
-    camera::CameraPlugin,
-    node::RayMarchingNode,
-    shape::ShapePlugin,
-    stages::StagesPlugin,
-    tracing_pipelines::{queue_tracing_pipeline, TracingPipelines},
-    upsampling_pipeline::UpsamplingPipeline,
+    camera::CameraPlugin, node::RayMarchingNode, shape::ShapePlugin, stages::StagesPlugin,
+    tracing_pipelines::TracingPlugin, upsampling_pipeline::UpsamplingPipeline,
 };
 use bevy::{
     core_pipeline::core_3d,
@@ -30,13 +26,11 @@ impl Plugin for RayMarchingPlugin {
 
         app.add_plugin(CameraPlugin)
             .add_plugin(ShapePlugin)
-            .add_plugin(StagesPlugin);
+            .add_plugin(StagesPlugin)
+            .add_plugin(TracingPlugin);
 
         let render_app = &mut app.sub_app_mut(RenderApp);
-        render_app
-            .init_resource::<TracingPipelines>()
-            .init_resource::<UpsamplingPipeline>()
-            .add_system(queue_tracing_pipeline.in_set(RenderSet::Queue));
+        render_app.init_resource::<UpsamplingPipeline>();
 
         let world = &mut render_app.world;
         let node = RayMarchingNode::new(world);

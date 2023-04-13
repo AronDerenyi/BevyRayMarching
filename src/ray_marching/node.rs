@@ -49,6 +49,10 @@ impl Node for RayMarchingNode {
         let upsampling_pipeline = world.resource::<UpsamplingPipeline>();
         let view_entity = graph.get_input_entity(Self::IN_VIEW)?;
 
+        if tracing_pipelines.invalid {
+            return Ok(());
+        }
+
         let (
             Some(first_tracing_pipeline),
             Some(mid_tracing_pipeline),
@@ -113,7 +117,11 @@ impl Node for RayMarchingNode {
             render_pass.set_render_pipeline(mid_tracing_pipeline);
             render_pass.set_bind_group(0, camera_bind_group, &[camera_index.index()]);
             render_pass.set_bind_group(1, shapes_bind_group, &[]);
-            render_pass.set_bind_group(2, &stage_bind_groups.mid[index], &[stage_indices.mid[index]]);
+            render_pass.set_bind_group(
+                2,
+                &stage_bind_groups.mid[index],
+                &[stage_indices.mid[index]],
+            );
             render_pass.draw(0..3, 0..1);
         }
 

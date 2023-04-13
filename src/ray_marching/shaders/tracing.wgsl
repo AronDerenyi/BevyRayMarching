@@ -134,20 +134,6 @@ fn normal(pnt: vec3<f32>) -> vec3<f32> {
     );
 }
 
-fn sdf(pnt: vec3<f32>) -> f32 {
-var dist_0 = 1024.0;
-var dist_1 = -1024.0;
-dist_1 = max(dist_1, sdf_cube(0u, pnt));
-var dist_2 = 1024.0;
-dist_2 = min(dist_2, sdf_plane(0u, pnt));
-for (var i = 0u; i < 2u; i = i + 1u) {
-dist_2 = min(dist_2, sdf_sphere(i, pnt));
-}
-dist_1 = max(dist_1, dist_2);
-dist_0 = min(dist_0, dist_1);
-return dist_0;
-}
-
 fn sdf_plane(id: u32, pnt: vec3<f32>) -> f32 {
     let plane = &shapes.planes[0];
     return pos_transform(pnt, (*plane).inv_transform).z * (*plane).scale;
