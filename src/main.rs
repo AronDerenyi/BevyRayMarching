@@ -1,12 +1,11 @@
 pub mod ray_marching;
-
 use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::{diagnostic::LogDiagnosticsPlugin, input::mouse::MouseWheel};
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use ray_marching::{
     RayMarchingPlugin, Shape,
-    ShapeType::{Cube, Plane, Sphere},
+    ShapeType::{Cube, Intersection, Plane, Sphere},
 };
 use std::f32::consts;
 
@@ -84,78 +83,62 @@ fn setup(mut commands: Commands) {
         },
     ));
 
-    commands.spawn((
-        Shape {
-            shape_type: Plane,
-            ..default()
-        },
-        Transform {
-            translation: Vec3::new(0.0, 0.0, -0.0),
-            ..default()
-        },
-        GlobalTransform::IDENTITY,
-    ));
-    //    commands.spawn((
-    //        Shape {
-    //            shape_type: Plane,
-    //            ..default()
-    //        },
-    //        Transform {
-    //            translation: Vec3::new(0.0, 0.0, 0.0),
-    //            rotation: Quat::from_axis_angle(Vec3::Y, -1.57),
-    //            ..default()
-    //        },
-    //        GlobalTransform::IDENTITY,
-    //    ));
     commands
         .spawn((
-            Transform {
-                //translation: Vec3::new(-2.0, -2.0, 0.0),
-                //rotation: Quat::from_euler(EulerRot::XYZ, 0.5, 0.5, 0.0),
-                scale: Vec3::new(1.0, 1.0, 1.0),
-                rotation: Quat::from_euler(EulerRot::XYZ, 0.5, 0.0, 0.5),
+            Shape {
+                shape_type: Intersection,
                 ..default()
             },
-            GlobalTransform::IDENTITY,
+            Transform::default(),
+            GlobalTransform::default(),
         ))
         .with_children(|builder| {
+            builder
+                .spawn((
+                    Shape::default(),
+                    Transform::default(),
+                    GlobalTransform::default(),
+                ))
+                .with_children(|builder| {
+                    builder.spawn((
+                        Shape {
+                            shape_type: Plane,
+                            ..default()
+                        },
+                        Transform::default(),
+                        GlobalTransform::default(),
+                    ));
+                    builder.spawn((
+                        Shape {
+                            shape_type: Sphere { radius: 1.0 },
+                            ..default()
+                        },
+                        Transform::from_xyz(0.0, 1.0, 0.0),
+                        GlobalTransform::default(),
+                    ));
+                    builder.spawn((
+                        Shape {
+                            shape_type: Sphere { radius: 1.5 },
+                            ..default()
+                        },
+                        Transform::from_xyz(1.0, 2.0, 0.0),
+                        GlobalTransform::default(),
+                        Bouncing,
+                    ));
+                });
             builder.spawn((
                 Shape {
                     shape_type: Cube {
                         size: Vec3::new(1.0, 2.0, 1.0),
                     },
-                    ..default()
+                    negative: false,
                 },
                 Transform {
                     translation: Vec3::new(-2.0, -2.0, 0.0),
+                    rotation: Quat::from_euler(EulerRot::XYZ, 0.5, 0.0, 0.5),
                     ..default()
                 },
-                GlobalTransform::IDENTITY,
-                Bouncing,
-            ));
-        });
-    commands
-        .spawn((
-            Shape {
-                shape_type: Sphere { radius: 1.0 },
-                ..default()
-            },
-            Transform {
-                translation: Vec3::new(1.0, 0.0, 0.0),
-                scale: Vec3::new(1.0, 1.0, 1.0),
-                rotation: Quat::from_rotation_z(0.5),
-                ..default()
-            },
-            GlobalTransform::IDENTITY,
-        ))
-        .with_children(|builder| {
-            builder.spawn((
-                Shape {
-                    shape_type: Sphere { radius: 1.5 },
-                    ..default()
-                },
-                Transform::from_xyz(0.0, 1.0, 0.0),
-                GlobalTransform::IDENTITY,
+                GlobalTransform::default(),
                 Bouncing,
             ));
         });

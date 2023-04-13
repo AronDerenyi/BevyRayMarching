@@ -111,42 +111,42 @@ fn main(@location(0) uv: vec2<f32>) ->
 }
 
 // from: https://www.alanzucconi.com/2016/07/01/ambient-occlusion/
-fn ambient_occlusion(pos: vec3<f32>, normal: vec3<f32>) -> f32 {
+fn ambient_occlusion(pnt: vec3<f32>, normal: vec3<f32>) -> f32 {
     // With the burnt in step size: 0.1
     // Unwrapped loop for 4 iterations
     // Precomputed inverse max_sum for 4 iterations:
     // 1 / ((1 / 2^0 + 2 / 2^1 + 3 / 2^2 + 4 / 2^3) * 0.1) = 3.07692307692
 
-    var sum = max(0.0, sdf(pos + normal * 0.1));
-    sum += max(0.0, sdf(pos + normal * 0.2)) * 0.5;
-    sum += max(0.0, sdf(pos + normal * 0.3)) * 0.25;
-    sum += max(0.0, sdf(pos + normal * 0.4)) * 0.125;
+    var sum = max(0.0, sdf(pnt + normal * 0.1));
+    sum += max(0.0, sdf(pnt + normal * 0.2)) * 0.5;
+    sum += max(0.0, sdf(pnt + normal * 0.3)) * 0.25;
+    sum += max(0.0, sdf(pnt + normal * 0.4)) * 0.125;
     return sum * 3.07692307692;
 }
 
-fn normal(pos: vec3<f32>) -> vec3<f32> {
+fn normal(pnt: vec3<f32>) -> vec3<f32> {
     var epsilon = 0.001;
     return normalize(
-        vec3(1.0, -1.0, -1.0) * sdf(pos + vec3(1.0, -1.0, -1.0) * epsilon) +
-        vec3(-1.0, 1.0, -1.0) * sdf(pos + vec3(-1.0, 1.0, -1.0) * epsilon) +
-        vec3(-1.0, -1.0, 1.0) * sdf(pos + vec3(-1.0, -1.0, 1.0) * epsilon) +
-        vec3(1.0, 1.0, 1.0) * sdf(pos + vec3(1.0, 1.0, 1.0) * epsilon)
+        vec3(1.0, -1.0, -1.0) * sdf(pnt + vec3(1.0, -1.0, -1.0) * epsilon) +
+        vec3(-1.0, 1.0, -1.0) * sdf(pnt + vec3(-1.0, 1.0, -1.0) * epsilon) +
+        vec3(-1.0, -1.0, 1.0) * sdf(pnt + vec3(-1.0, -1.0, 1.0) * epsilon) +
+        vec3(1.0, 1.0, 1.0) * sdf(pnt + vec3(1.0, 1.0, 1.0) * epsilon)
     );
 }
 
-fn sdf(pos: vec3<f32>) -> f32 {
-    var dist = sdf_plane(0u, pos);
+fn sdf(pnt: vec3<f32>) -> f32 {
+    var dist = 1024.0;
 
-    for (var i: u32 = 1u; i < shapes.plane_count; i = i + 1u) {
-        dist = min(dist, sdf_plane(i, pos));
+    for (var i: u32 = 0u; i < shapes.plane_count; i = i + 1u) {
+        dist = min(dist, sdf_plane(i, pnt));
     }
 
     for (var i: u32 = 0u; i < shapes.sphere_count; i = i + 1u) {
-        dist = min(dist, sdf_sphere(i, pos));
+        dist = min(dist, sdf_sphere(i, pnt));
     }
 
     for (var i: u32 = 0u; i < shapes.cube_count; i = i + 1u) {
-        dist = min(dist, sdf_cube(i, pos));
+        dist = min(dist, sdf_cube(i, pnt));
     }
 
     return dist;

@@ -1,11 +1,14 @@
-use std::ops::Deref;
+use std::{
+    borrow::Borrow,
+    ops::{Deref, Range},
+};
 
 use bevy::{
     ecs::query::QueryItem,
     math::Vec3A,
     prelude::{
-        warn, Commands, Component, FromWorld, GlobalTransform, IntoSystemConfig, Mat4, Plugin,
-        Query, Res, ResMut, Resource, Vec3,
+        warn, Children, Commands, Component, Entity, FromWorld, GlobalTransform, IntoSystemConfig,
+        Mat4, Parent, Plugin, Query, Res, ResMut, Resource, Vec3, With, Without,
     },
     render::{
         extract_component::{ExtractComponent, ExtractComponentPlugin},
@@ -20,6 +23,7 @@ pub struct ShapePlugin;
 impl Plugin for ShapePlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
         app.add_plugin(ExtractComponentPlugin::<ExtractedShape>::default());
+        app.add_plugin(ExtractComponentPlugin::<RootShape>::default());
         app.sub_app_mut(RenderApp)
             .init_resource::<ShapesUniformBuffer>()
             .init_resource::<ShapesBindGroupLayout>()
@@ -49,39 +53,58 @@ impl Default for ShapeType {
     }
 }
 
-pub const MAX_PLANES: usize = 4;
-pub const MAX_SPHERES: usize = 16;
-pub const MAX_CUBES: usize = 16;
-
-#[derive(Component, Clone)]
+#[derive(Component, Default)]
 struct ExtractedShape {
     shape_type: ShapeType,
+    children: Option<Vec<Entity>>,
     negative: bool,
     transform: GlobalTransform,
 }
 
 impl ExtractComponent for ExtractedShape {
-    type Query = (&'static Shape, &'static GlobalTransform);
+    type Query = (
+        &'static Shape,
+        &'static GlobalTransform,
+        Option<&'static Children>,
+    );
     type Filter = ();
     type Out = Self;
 
-    fn extract_component((shape, transform): QueryItem<'_, Self::Query>) -> Option<Self> {
+    fn extract_component((shape, transform, children): QueryItem<'_, Self::Query>) -> Option<Self> {
         Some(Self {
             shape_type: shape.shape_type.clone(),
+            children: children.map(|children| children.iter().map(|entity| *entity).collect()),
             negative: shape.negative,
             transform: transform.clone(),
         })
     }
 }
 
+#[derive(Component, Clone, Default)]
+struct RootShape;
+
+impl ExtractComponent for RootShape {
+    type Query = ();
+    type Filter = (With<Shape>, With<GlobalTransform>, Without<Parent>);
+    type Out = Self;
+
+    fn extract_component(_: QueryItem<'_, Self::Query>) -> Option<Self> {
+        Some(Self)
+    }
+}
+
+pub const MAX_PLANES: u8 = 4;
+pub const MAX_SPHERES: u8 = 16;
+pub const MAX_CUBES: u8 = 16;
+
 #[derive(ShaderType, Clone, Default)]
 struct ShapesUniform {
     plane_count: u32,
-    planes: [Plane; MAX_PLANES],
+    planes: [Plane; MAX_PLANES as usize],
     sphere_count: u32,
-    spheres: [Sphere; MAX_SPHERES],
+    spheres: [Sphere; MAX_SPHERES as usize],
     cube_count: u32,
-    cubes: [Cube; MAX_CUBES],
+    cubes: [Cube; MAX_CUBES as usize],
 }
 
 #[derive(ShaderType, Clone, Default)]
@@ -107,68 +130,47 @@ struct Cube {
 #[derive(Resource, Default)]
 struct ShapesUniformBuffer(UniformBuffer<ShapesUniform>);
 
+#[derive(Resource, PartialEq, Eq)]
+struct ShapeGroup {
+    plane_index_range: Range<u8>,
+    sphere_index_range: Range<u8>,
+    cube_index_range: Range<u8>,
+    children: Vec<Self>,
+    operation: ShapeGroupOperation,
+    negative: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum ShapeGroupOperation {
+    Min,
+    Max,
+}
+
 fn prepare_shapes(
+    mut commands: Commands,
+    roots: Query<Entity, With<RootShape>>,
     shapes: Query<&ExtractedShape>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     mut uniform_buffer: ResMut<ShapesUniformBuffer>,
 ) {
-    let mut plane_index = 0;
-    let mut sphere_index = 0;
-    let mut cube_index = 0;
     let mut uniform = ShapesUniform::default();
+    let mut plane_index = 0u8;
+    let mut sphere_index = 0u8;
+    let mut cube_index = 0u8;
 
-    for shape in shapes.iter() {
-        let matrix = shape.transform.affine().matrix3;
-        let min_x_scale = point_plane_distance(matrix.x_axis, matrix.y_axis, matrix.z_axis);
-        let min_y_scale = point_plane_distance(matrix.y_axis, matrix.x_axis, matrix.z_axis);
-        let min_z_scale = point_plane_distance(matrix.z_axis, matrix.x_axis, matrix.y_axis);
-
-        let inv_transform = shape.transform.compute_matrix().inverse();
-        let scale =
-            min_x_scale.min(min_y_scale).min(min_z_scale) * if shape.negative { -1.0 } else { 1.0 };
-
-        match shape.shape_type {
-            ShapeType::Plane => {
-                if plane_index < MAX_PLANES {
-                    uniform.planes[plane_index] = Plane {
-                        inv_transform,
-                        scale,
-                    };
-                    plane_index += 1;
-                } else {
-                    warn!("Too many planes are in the scene");
-                }
-            }
-            ShapeType::Sphere { radius } => {
-                if sphere_index < MAX_SPHERES {
-                    uniform.spheres[sphere_index] = Sphere {
-                        radius,
-                        inv_transform,
-                        scale,
-                    };
-                    sphere_index += 1;
-                } else {
-                    warn!("Too many spheres are in the scene");
-                }
-            }
-            ShapeType::Cube { size } => {
-                if cube_index < MAX_CUBES {
-                    uniform.cubes[cube_index] = Cube {
-                        size,
-                        inv_transform,
-                        scale,
-                    };
-                    cube_index += 1;
-                } else {
-                    warn!("Too many cubes are in the scene");
-                }
-            }
-            _ => {
-                warn!("Unsupported shape type");
-            }
-        }
-    }
+    let root_group = create_group(
+        &shapes,
+        &ExtractedShape::default(),
+        roots.iter(),
+        &mut uniform,
+        &mut plane_index,
+        &mut sphere_index,
+        &mut cube_index,
+    );
+    print_group(&root_group, 0);
+    println!("-----------------------");
+    commands.insert_resource(root_group);
 
     uniform.plane_count = plane_index as u32;
     uniform.sphere_count = sphere_index as u32;
@@ -176,6 +178,193 @@ fn prepare_shapes(
 
     uniform_buffer.0.set(uniform);
     uniform_buffer.0.write_buffer(&*device, &*queue);
+}
+
+fn print_group(group: &ShapeGroup, depth: u8) {
+    for _ in 0..depth {
+        print!("  ")
+    }
+    println!(
+        "{:?}, {:?}, {:?}, {:?}",
+        group.operation, group.plane_index_range, group.sphere_index_range, group.cube_index_range
+    );
+    for child in group.children.iter() {
+        print_group(child, depth + 1)
+    }
+}
+
+fn create_group<T>(
+    shapes: &Query<&ExtractedShape>,
+    shape: &ExtractedShape,
+    children: T,
+    uniform: &mut ShapesUniform,
+    plane_index: &mut u8,
+    sphere_index: &mut u8,
+    cube_index: &mut u8,
+) -> ShapeGroup
+where
+    T: IntoIterator,
+    T::Item: Borrow<Entity>,
+{
+    // Saving the starting indices
+    let mut plane_index_range = *plane_index..*plane_index;
+    let mut sphere_index_range = *sphere_index..*sphere_index;
+    let mut cube_index_range = *cube_index..*cube_index;
+
+    // Calculating the operation and adding the shape if it has one
+    let (operation, negative) = {
+        let ExtractedShape {
+            shape_type,
+            transform,
+            negative,
+            ..
+        } = shape;
+
+        match shape_type {
+            ShapeType::Plane => {
+                add_plane(uniform, plane_index, transform, false);
+                (ShapeGroupOperation::Min, *negative)
+            }
+            ShapeType::Sphere { radius } => {
+                add_sphere(uniform, sphere_index, *radius, transform, false);
+                (ShapeGroupOperation::Min, *negative)
+            }
+            ShapeType::Cube { size } => {
+                add_cube(uniform, cube_index, *size, transform, false);
+                (ShapeGroupOperation::Min, *negative)
+            }
+            ShapeType::Union => (ShapeGroupOperation::Min, *negative),
+            ShapeType::Intersection => (ShapeGroupOperation::Max, *negative),
+        }
+    };
+
+    // Adding the shapes that don't have children and saving the ones that do
+    let mut groups = Vec::<(&ExtractedShape, &Vec<Entity>)>::new();
+    for shape in shapes.iter_many(children) {
+        let ExtractedShape {
+            children,
+            shape_type,
+            transform,
+            negative,
+        } = shape;
+        match children {
+            None => match shape_type {
+                ShapeType::Plane => {
+                    add_plane(uniform, plane_index, transform, *negative);
+                }
+                ShapeType::Sphere { radius } => {
+                    add_sphere(uniform, sphere_index, *radius, transform, *negative);
+                }
+                ShapeType::Cube { size } => {
+                    add_cube(uniform, cube_index, *size, transform, *negative);
+                }
+                _ => (),
+            },
+            Some(children) => {
+                groups.push((shape, children));
+            }
+        }
+    }
+
+    // Saving the ending indices
+    plane_index_range.end = *plane_index;
+    sphere_index_range.end = *sphere_index;
+    cube_index_range.end = *cube_index;
+
+    // Converting the shapes with children into groups
+    let children = groups
+        .iter()
+        .map(|(shape, children)| {
+            create_group(
+                shapes,
+                shape,
+                *children,
+                uniform,
+                plane_index,
+                sphere_index,
+                cube_index,
+            )
+        })
+        .collect::<Vec<_>>();
+
+    ShapeGroup {
+        plane_index_range,
+        sphere_index_range,
+        cube_index_range,
+        children,
+        operation,
+        negative,
+    }
+}
+
+fn add_plane(
+    uniform: &mut ShapesUniform,
+    index: &mut u8,
+    transform: &GlobalTransform,
+    negative: bool,
+) {
+    if *index == MAX_PLANES {
+        warn!("Too many planes are in the scene");
+    } else {
+        let (inv_transform, scale) = get_inverse_transform(transform, negative);
+        uniform.planes[*index as usize] = Plane {
+            inv_transform,
+            scale,
+        };
+        *index += 1;
+    }
+}
+
+fn add_sphere(
+    uniform: &mut ShapesUniform,
+    index: &mut u8,
+    radius: f32,
+    transform: &GlobalTransform,
+    negative: bool,
+) {
+    if *index == MAX_SPHERES {
+        warn!("Too many spheres are in the scene");
+    } else {
+        let (inv_transform, scale) = get_inverse_transform(transform, negative);
+        uniform.spheres[*index as usize] = Sphere {
+            radius,
+            inv_transform,
+            scale,
+        };
+        *index += 1;
+    }
+}
+
+fn add_cube(
+    uniform: &mut ShapesUniform,
+    index: &mut u8,
+    size: Vec3,
+    transform: &GlobalTransform,
+    negative: bool,
+) {
+    if *index == MAX_CUBES {
+        warn!("Too many cubes are in the scene");
+    } else {
+        let (inv_transform, scale) = get_inverse_transform(transform, negative);
+        uniform.cubes[*index as usize] = Cube {
+            size,
+            inv_transform,
+            scale,
+        };
+        *index += 1;
+    }
+}
+
+fn get_inverse_transform(transform: &GlobalTransform, negative: bool) -> (Mat4, f32) {
+    let matrix = transform.affine().matrix3;
+    let min_x_scale = point_plane_distance(matrix.x_axis, matrix.y_axis, matrix.z_axis);
+    let min_y_scale = point_plane_distance(matrix.y_axis, matrix.x_axis, matrix.z_axis);
+    let min_z_scale = point_plane_distance(matrix.z_axis, matrix.x_axis, matrix.y_axis);
+
+    (
+        transform.compute_matrix().inverse(),
+        min_x_scale.min(min_y_scale).min(min_z_scale) * if negative { -1.0 } else { 1.0 },
+    )
 }
 
 fn point_plane_distance(point: Vec3A, plane1: Vec3A, plane2: Vec3A) -> f32 {
