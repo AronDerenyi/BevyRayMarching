@@ -131,7 +131,7 @@ fn setup(mut commands: Commands) {
                     shape_type: Cube {
                         size: Vec3::new(1.0, 2.0, 1.0),
                     },
-                    negative: false,
+                    negative: true,
                 },
                 Transform {
                     translation: Vec3::new(-2.0, -2.0, 0.0),

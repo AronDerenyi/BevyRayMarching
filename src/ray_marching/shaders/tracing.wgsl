@@ -103,7 +103,7 @@ fn main(@location(0) uv: vec2<f32>) ->
         if collided {
             let normal = normal(pos + dir * distance);
             let ambient_occlusion = ambient_occlusion(pos + dir * distance, normal);
-            return vec4(vec3((0.6 + ambient_occlusion * 0.4) * (normal.z * 0.5 + 0.5)), 1.0);
+            return vec4(vec3(1.0, 1.0, 1.0) * (0.6 + ambient_occlusion * 0.4) * (normal.z * 0.5 + 0.5), 1.0);
         } else {
             return vec4(vec3(0.0), 1.0);
         }
@@ -135,21 +135,17 @@ fn normal(pnt: vec3<f32>) -> vec3<f32> {
 }
 
 fn sdf(pnt: vec3<f32>) -> f32 {
-    var dist = 1024.0;
-
-    for (var i: u32 = 0u; i < shapes.plane_count; i = i + 1u) {
-        dist = min(dist, sdf_plane(i, pnt));
-    }
-
-    for (var i: u32 = 0u; i < shapes.sphere_count; i = i + 1u) {
-        dist = min(dist, sdf_sphere(i, pnt));
-    }
-
-    for (var i: u32 = 0u; i < shapes.cube_count; i = i + 1u) {
-        dist = min(dist, sdf_cube(i, pnt));
-    }
-
-    return dist;
+var dist_0 = 1024.0;
+var dist_1 = -1024.0;
+dist_1 = max(dist_1, sdf_cube(0u, pnt));
+var dist_2 = 1024.0;
+dist_2 = min(dist_2, sdf_plane(0u, pnt));
+for (var i = 0u; i < 2u; i = i + 1u) {
+dist_2 = min(dist_2, sdf_sphere(i, pnt));
+}
+dist_1 = max(dist_1, dist_2);
+dist_0 = min(dist_0, dist_1);
+return dist_0;
 }
 
 fn sdf_plane(id: u32, pnt: vec3<f32>) -> f32 {

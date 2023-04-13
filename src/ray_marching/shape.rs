@@ -168,8 +168,6 @@ fn prepare_shapes(
         &mut sphere_index,
         &mut cube_index,
     );
-    print_group(&root_group, 0);
-    println!("-----------------------");
     commands.insert_resource(root_group);
 
     uniform.plane_count = plane_index as u32;
@@ -178,19 +176,6 @@ fn prepare_shapes(
 
     uniform_buffer.0.set(uniform);
     uniform_buffer.0.write_buffer(&*device, &*queue);
-}
-
-fn print_group(group: &ShapeGroup, depth: u8) {
-    for _ in 0..depth {
-        print!("  ")
-    }
-    println!(
-        "{:?}, {:?}, {:?}, {:?}",
-        group.operation, group.plane_index_range, group.sphere_index_range, group.cube_index_range
-    );
-    for child in group.children.iter() {
-        print_group(child, depth + 1)
-    }
 }
 
 fn create_group<T>(

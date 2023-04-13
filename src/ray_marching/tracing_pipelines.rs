@@ -1,3 +1,7 @@
+use std::ops::Range;
+
+use crate::ray_marching::shape::ShapeGroupOperation;
+
 use super::{
     camera::CameraBindGroupLayout,
     shaders,
@@ -43,6 +47,11 @@ pub fn queue_tracing_pipeline(
 
     if changed {
         *local_shape_group = Some(shape_group.clone());
+        let sdf = generate_sdf(&shape_group);
+        println!("---------- SDF SHADER CODE ----------");
+        println!("{}", sdf);
+        println!("-------------------------------------");
+
         pipeline.first_id = pipeline_cache.queue_render_pipeline(specialized_descriptor(
             "first_tracing_pipeline",
             vec![
@@ -116,3 +125,78 @@ fn specialized_descriptor(
         depth_stencil: None,
     }
 }
+
+fn generate_sdf(group: &ShapeGroup) -> String {
+    let mut group_index = 0u8;
+    let (source, dist) = generate_group_sdf(group, &mut group_index);
+
+    format!(
+"fn sdf(pnt: vec3<f32>) -> f32 {{
+{source}return {dist};
+}}"
+    )
+}
+
+fn generate_group_sdf(group: &ShapeGroup, index: &mut u8) -> (String, String) {
+    let dist = format!("dist_{}", index);
+    let operation = match group.operation {
+        ShapeGroupOperation::Min => "min",
+        ShapeGroupOperation::Max => "max",
+    };
+
+    let planes = generate_shapes_sdf(dist.as_str(), operation, "plane", &group.plane_index_range);
+    let spheres = generate_shapes_sdf(dist.as_str(), operation, "sphere", &group.sphere_index_range);
+    let cubes = generate_shapes_sdf(dist.as_str(), operation, "cube", &group.cube_index_range);
+    let mut source = match group.operation {
+        ShapeGroupOperation::Min => format!("var {dist} = 1024.0;\n{planes}{spheres}{cubes}"),
+        ShapeGroupOperation::Max => format!("var {dist} = -1024.0;\n{planes}{spheres}{cubes}"),
+    };
+
+    *index += 1;
+    for group in group.children.iter() {
+        let (group_source, group_dist) = generate_group_sdf(group, index);
+        source += &group_source;
+
+        if group.negative {
+            source += &format!("{dist} = {operation}({dist}, -{group_dist});\n");
+        } else {
+            source += &format!("{dist} = {operation}({dist}, {group_dist});\n");
+        }
+    }
+
+    (source, dist)
+}
+
+fn generate_shapes_sdf(
+    dist: &str,
+    operation: &str,
+    shape: &str,
+    index_range: &Range<u8>,
+) -> String {
+    let start_index = index_range.start;
+    let end_index = index_range.end;
+    match end_index - start_index {
+        0 => String::new(),
+        1 => format!("{dist} = {operation}({dist}, sdf_{shape}({start_index}u, pnt));\n"),
+        _ => format!(
+"for (var i = {start_index}u; i < {end_index}u; i = i + 1u) {{
+{dist} = {operation}({dist}, sdf_{shape}(i, pnt));
+}}\n"
+        ),
+    }
+}
+
+/*
+var dist_0 = 0.0;
+var dist_1 = 0.0;
+dist_1 = max(dist_1, sdf_cube(0, pnt));
+
+var dist_2 = 0.0;
+dist_2 = min(dist_2, sdf_plane(0, pnt));
+for (var i = 0u; i < 2u; i = i + 1) {
+    dist_2 = min(dist_2, sdf_phere(i, pnt));
+}
+
+dist_1 = max(dist_1, dist_2);
+dist_0 = min(dist_0, dist_1);
+*/
