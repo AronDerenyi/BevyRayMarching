@@ -108,39 +108,54 @@ fn setup(mut commands: Commands) {
                         Transform::default(),
                         GlobalTransform::default(),
                     ));
-                    builder.spawn((
-                        Shape {
-                            shape_type: Sphere { radius: 1.0 },
-                            ..default()
-                        },
-                        Transform::from_xyz(0.0, 1.0, 0.0),
-                        GlobalTransform::default(),
-                    ));
-                    builder.spawn((
-                        Shape {
-                            shape_type: Sphere { radius: 1.5 },
-                            ..default()
-                        },
-                        Transform::from_xyz(1.0, 2.0, 0.0),
-                        GlobalTransform::default(),
-                        Bouncing,
-                    ));
+//                    builder.spawn((
+//                        Shape {
+//                            shape_type: Sphere { radius: 1.0 },
+//                            ..default()
+//                        },
+//                        Transform::from_xyz(0.0, 1.0, 0.0),
+//                        GlobalTransform::default(),
+//                    ));
+//                    builder.spawn((
+//                        Shape {
+//                            shape_type: Sphere { radius: 1.5 },
+//                            ..default()
+//                        },
+//                        Transform::from_xyz(1.0, 2.0, 0.0),
+//                        GlobalTransform::default(),
+//                        Bouncing,
+//                    ));
                 });
-            builder.spawn((
-                Shape {
-                    shape_type: Cube {
-                        size: Vec3::new(1.0, 2.0, 1.0),
+            builder
+                .spawn((
+                    Shape {
+                        negative: true,
+                        ..default()
                     },
-                    negative: true,
-                },
-                Transform {
-                    translation: Vec3::new(-2.0, -2.0, 0.0),
-                    rotation: Quat::from_euler(EulerRot::XYZ, 0.5, 0.0, 0.5),
-                    ..default()
-                },
-                GlobalTransform::default(),
-                Bouncing,
-            ));
+                    Transform {
+                        translation: Vec3::new(0.0, 0.0, 0.0),
+                        rotation: Quat::from_euler(EulerRot::XYZ, 0.0, 0.0, 0.0),
+                        ..default()
+                    },
+                    GlobalTransform::default(),
+                    Bouncing,
+                ))
+                .with_children(|builder| {
+                    for y in -2..=2 {
+                        for x in -2..=2 {
+                            builder.spawn((
+                                Shape {
+                                    shape_type: Cube {
+                                        size: Vec3::new(0.2, 0.2, 0.5),
+                                    },
+                                    negative: false,
+                                },
+                                Transform::from_xyz(x as f32, y as f32, 0.0),
+                                GlobalTransform::default(),
+                            ));
+                        }
+                    }
+                });
         });
 }
 
@@ -172,6 +187,6 @@ fn orbit_updater(mut orbits: Query<(&mut Transform, &OrbitControls)>) {
 
 fn bouncing_updater(mut transforms: Query<&mut Transform, With<Bouncing>>, time: Res<Time>) {
     for mut transform in transforms.iter_mut() {
-        transform.translation.z = time.elapsed_seconds().sin() + 1.0;
+        transform.translation.z = time.elapsed_seconds().sin() * 0.5 + 0.05;
     }
 }

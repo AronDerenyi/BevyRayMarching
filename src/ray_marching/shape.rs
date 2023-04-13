@@ -94,8 +94,8 @@ impl ExtractComponent for RootShape {
 }
 
 pub const MAX_PLANES: u8 = 4;
-pub const MAX_SPHERES: u8 = 16;
-pub const MAX_CUBES: u8 = 16;
+pub const MAX_SPHERES: u8 = 24;
+pub const MAX_CUBES: u8 = 24;
 
 #[derive(ShaderType, Clone, Default)]
 struct ShapesUniform {
