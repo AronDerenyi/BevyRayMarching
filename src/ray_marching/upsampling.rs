@@ -1,13 +1,24 @@
+use super::{shaders, stages::StageBindGroupLayouts};
 use bevy::{
     core_pipeline::fullscreen_vertex_shader::fullscreen_shader_vertex_state,
-    prelude::{default, FromWorld, Resource},
-    render::render_resource::{
-        CachedRenderPipelineId, ColorTargetState, ColorWrites, FragmentState, PipelineCache,
-        RenderPipelineDescriptor, TextureFormat,
+    prelude::{default, FromWorld, Plugin, Resource},
+    render::{
+        render_resource::{
+            CachedRenderPipelineId, ColorTargetState, ColorWrites, FragmentState, PipelineCache,
+            RenderPipelineDescriptor, TextureFormat,
+        },
+        RenderApp,
     },
 };
 
-use super::{shaders, stages::StageBindGroupLayouts};
+pub struct UpsamplingPlugin;
+
+impl Plugin for UpsamplingPlugin {
+    fn build(&self, app: &mut bevy::prelude::App) {
+        app.sub_app_mut(RenderApp)
+            .init_resource::<UpsamplingPipeline>();
+    }
+}
 
 #[derive(Resource)]
 pub struct UpsamplingPipeline {

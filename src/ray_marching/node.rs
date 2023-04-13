@@ -2,8 +2,8 @@ use super::{
     camera::{CameraBindGroup, CameraUniformIndex},
     shape::ShapesBindGroup,
     stages::{StageBindGroups, StageIndices, StageTextures},
-    tracing_pipelines::TracingPipelines,
-    upsampling_pipeline::UpsamplingPipeline,
+    tracing::TracingPipelines,
+    upsampling::UpsamplingPipeline,
 };
 use bevy::{
     prelude::*,

@@ -3,18 +3,18 @@ mod node;
 mod shaders;
 mod shape;
 mod stages;
-mod tracing_pipelines;
-mod upsampling_pipeline;
+mod tracing;
+mod upsampling;
 
 pub use self::shape::{Shape, ShapeType};
 use self::{
     camera::CameraPlugin, node::RayMarchingNode, shape::ShapePlugin, stages::StagesPlugin,
-    tracing_pipelines::TracingPlugin, upsampling_pipeline::UpsamplingPipeline,
+    tracing::TracingPlugin, upsampling::UpsamplingPlugin,
 };
 use bevy::{
     core_pipeline::core_3d,
     prelude::*,
-    render::{render_graph::RenderGraph, RenderApp, RenderSet},
+    render::{render_graph::RenderGraph, RenderApp},
 };
 
 #[derive(Default)]
@@ -27,11 +27,10 @@ impl Plugin for RayMarchingPlugin {
         app.add_plugin(CameraPlugin)
             .add_plugin(ShapePlugin)
             .add_plugin(StagesPlugin)
-            .add_plugin(TracingPlugin);
+            .add_plugin(TracingPlugin)
+            .add_plugin(UpsamplingPlugin);
 
         let render_app = &mut app.sub_app_mut(RenderApp);
-        render_app.init_resource::<UpsamplingPipeline>();
-
         let world = &mut render_app.world;
         let node = RayMarchingNode::new(world);
 
@@ -51,45 +50,3 @@ impl Plugin for RayMarchingPlugin {
         graph_3d.add_node_edge(core_3d::graph::node::MAIN_PASS, RayMarchingNode::NAME);
     }
 }
-
-/*
-
-extracted data:
-    shape
-    camera
-
-uniform data:
-    shapes (global)
-    camera (per view)
-    target view sizes (per view, per target)
-
-textures:
-    per view
-
-bind group layout:
-    shapes
-    camera
-    target view (texture, size)
-
-pipeline:
-    ray marching (shapes, camera, target view)
-    post processing
-
-bind group
-
-
-
-
-tps: target pixel size
-pt: previous texture
-
-
-first -> inter -> inter -> inter -> last
-tps      tps      tps      tps      tps
-         pt       pt       pt       pt
-
-
-
-
-
-*/
