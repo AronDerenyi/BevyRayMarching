@@ -1,12 +1,12 @@
 use super::{
     camera::CameraBindGroupLayout,
     shaders,
-    shape::{ShapesBindGroupLayout, MAX_CUBES, MAX_PLANES, MAX_SPHERES},
+    shape::{ShapeGroup, ShapesBindGroupLayout, MAX_CUBES, MAX_PLANES, MAX_SPHERES},
     stages::StageBindGroupLayouts,
 };
 use bevy::{
     core_pipeline::fullscreen_vertex_shader::fullscreen_shader_vertex_state,
-    prelude::{default, Res, ResMut, Resource},
+    prelude::{default, Local, Res, ResMut, Resource},
     render::render_resource::*,
 };
 
@@ -33,8 +33,16 @@ pub fn queue_tracing_pipeline(
     camera_bind_group_layout: Res<CameraBindGroupLayout>,
     shapes_bind_group_layout: Res<ShapesBindGroupLayout>,
     stage_bind_group_layouts: Res<StageBindGroupLayouts>,
+    shape_group: Res<ShapeGroup>,
+    mut local_shape_group: Local<Option<ShapeGroup>>,
 ) {
-    if pipeline.first_id == CachedRenderPipelineId::INVALID {
+    let changed = match &*local_shape_group {
+        Some(local_shape_group) => *shape_group != *local_shape_group,
+        None => true,
+    };
+
+    if changed {
+        *local_shape_group = Some(shape_group.clone());
         pipeline.first_id = pipeline_cache.queue_render_pipeline(specialized_descriptor(
             "first_tracing_pipeline",
             vec![
@@ -50,8 +58,6 @@ pub fn queue_tracing_pipeline(
             ],
             TextureFormat::R32Float,
         ));
-    }
-    if pipeline.mid_id == CachedRenderPipelineId::INVALID {
         pipeline.mid_id = pipeline_cache.queue_render_pipeline(specialized_descriptor(
             "mid_tracing_pipeline",
             vec![
@@ -66,8 +72,6 @@ pub fn queue_tracing_pipeline(
             ],
             TextureFormat::R32Float,
         ));
-    }
-    if pipeline.last_id == CachedRenderPipelineId::INVALID {
         pipeline.last_id = pipeline_cache.queue_render_pipeline(specialized_descriptor(
             "last_tracing_pipeline",
             vec![

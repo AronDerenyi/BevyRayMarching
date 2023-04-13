@@ -49,7 +49,7 @@ pub enum ShapeType {
 
 impl Default for ShapeType {
     fn default() -> Self {
-        ShapeType::Union
+        Self::Union
     }
 }
 
@@ -130,18 +130,18 @@ struct Cube {
 #[derive(Resource, Default)]
 struct ShapesUniformBuffer(UniformBuffer<ShapesUniform>);
 
-#[derive(Resource, PartialEq, Eq)]
-struct ShapeGroup {
-    plane_index_range: Range<u8>,
-    sphere_index_range: Range<u8>,
-    cube_index_range: Range<u8>,
-    children: Vec<Self>,
-    operation: ShapeGroupOperation,
-    negative: bool,
+#[derive(Resource, PartialEq, Eq, Clone)]
+pub struct ShapeGroup {
+    pub plane_index_range: Range<u8>,
+    pub sphere_index_range: Range<u8>,
+    pub cube_index_range: Range<u8>,
+    pub children: Vec<Self>,
+    pub operation: ShapeGroupOperation,
+    pub negative: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum ShapeGroupOperation {
+pub enum ShapeGroupOperation {
     Min,
     Max,
 }
