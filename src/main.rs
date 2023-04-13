@@ -93,69 +93,54 @@ fn setup(mut commands: Commands) {
             GlobalTransform::default(),
         ))
         .with_children(|builder| {
-            builder
-                .spawn((
-                    Shape::default(),
-                    Transform::default(),
-                    GlobalTransform::default(),
-                ))
-                .with_children(|builder| {
-                    builder.spawn((
-                        Shape {
-                            shape_type: Plane,
-                            ..default()
-                        },
-                        Transform::default(),
-                        GlobalTransform::default(),
-                    ));
-//                    builder.spawn((
-//                        Shape {
-//                            shape_type: Sphere { radius: 1.0 },
-//                            ..default()
-//                        },
-//                        Transform::from_xyz(0.0, 1.0, 0.0),
-//                        GlobalTransform::default(),
-//                    ));
-//                    builder.spawn((
-//                        Shape {
-//                            shape_type: Sphere { radius: 1.5 },
-//                            ..default()
-//                        },
-//                        Transform::from_xyz(1.0, 2.0, 0.0),
-//                        GlobalTransform::default(),
-//                        Bouncing,
-//                    ));
-                });
-            builder
-                .spawn((
-                    Shape {
-                        negative: true,
-                        ..default()
+            builder.spawn((
+                Shape {
+                    shape_type: Sphere { radius: 1.3 },
+                    ..default()
+                },
+                Transform::default(),
+                GlobalTransform::default(),
+            ));
+            builder.spawn((
+                Shape {
+                    shape_type: Cube {
+                        size: Vec3::new(1.0, 1.0, 1.0),
                     },
-                    Transform {
-                        translation: Vec3::new(0.0, 0.0, 0.0),
-                        rotation: Quat::from_euler(EulerRot::XYZ, 0.0, 0.0, 0.0),
-                        ..default()
+                    ..default()
+                },
+                Transform::default(),
+                GlobalTransform::default(),
+            ));
+            builder.spawn((
+                Shape {
+                    shape_type: Cube {
+                        size: Vec3::new(1.1, 0.4, 0.4),
                     },
-                    GlobalTransform::default(),
-                    Bouncing,
-                ))
-                .with_children(|builder| {
-                    for y in -2..=2 {
-                        for x in -2..=2 {
-                            builder.spawn((
-                                Shape {
-                                    shape_type: Cube {
-                                        size: Vec3::new(0.2, 0.2, 0.5),
-                                    },
-                                    negative: false,
-                                },
-                                Transform::from_xyz(x as f32, y as f32, 0.0),
-                                GlobalTransform::default(),
-                            ));
-                        }
-                    }
-                });
+                    negative: true,
+                },
+                Transform::default(),
+                GlobalTransform::default(),
+            ));
+            builder.spawn((
+                Shape {
+                    shape_type: Cube {
+                        size: Vec3::new(0.4, 1.1, 0.4),
+                    },
+                    negative: true,
+                },
+                Transform::default(),
+                GlobalTransform::default(),
+            ));
+            builder.spawn((
+                Shape {
+                    shape_type: Cube {
+                        size: Vec3::new(0.4, 0.4, 1.1),
+                    },
+                    negative: true,
+                },
+                Transform::default(),
+                GlobalTransform::default(),
+            ));
         });
 }
 
