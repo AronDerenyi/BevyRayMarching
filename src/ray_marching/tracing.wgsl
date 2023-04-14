@@ -135,7 +135,7 @@ fn normal(pnt: vec3<f32>) -> vec3<f32> {
 }
 
 fn sdf_plane(id: u32, pnt: vec3<f32>) -> f32 {
-    let plane = &shapes.planes[0];
+    let plane = &shapes.planes[id];
     return pos_transform(pnt, (*plane).inv_transform).z * (*plane).scale;
 }
 
