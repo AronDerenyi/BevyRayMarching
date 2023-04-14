@@ -1,4 +1,5 @@
-pub mod ray_marching;
+mod ray_marching;
+mod user_interface;
 use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::{diagnostic::LogDiagnosticsPlugin, input::mouse::MouseWheel};
@@ -7,6 +8,7 @@ use ray_marching::{
     RayMarchingPlugin, Shape,
     ShapeType::{Cube, Intersection, Plane, Sphere},
 };
+use user_interface::UIPlugin;
 use std::f32::consts;
 
 /*
@@ -43,23 +45,12 @@ fn main() {
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(EguiPlugin)
         .add_plugin(RayMarchingPlugin)
+        .add_plugin(UIPlugin)
         .add_startup_system(setup)
         .add_system(orbit_controller)
         .add_system(orbit_updater)
         .add_system(bouncing_updater)
-        .add_system(gui)
         .run();
-}
-
-fn gui(mut egui_contexts: EguiContexts, diagnostics: Res<Diagnostics>) {
-    egui::Window::new("Diagnostics").show(egui_contexts.ctx_mut(), |ui| {
-        if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
-            ui.label(format!("{:.0} fps", fps.smoothed().unwrap_or(0.0)));
-        }
-        if let Some(frame_time) = diagnostics.get(FrameTimeDiagnosticsPlugin::FRAME_TIME) {
-            ui.label(format!("{:.2} ms", frame_time.smoothed().unwrap_or(0.0)));
-        }
-    });
 }
 
 fn setup(mut commands: Commands) {
@@ -85,6 +76,7 @@ fn setup(mut commands: Commands) {
 
     commands
         .spawn((
+            Name::new("Root"),
             Shape {
                 shape_type: Intersection,
                 ..default()
@@ -94,6 +86,7 @@ fn setup(mut commands: Commands) {
         ))
         .with_children(|builder| {
             builder.spawn((
+                Name::new("Sphere"),
                 Shape {
                     shape_type: Sphere { radius: 1.3 },
                     ..default()
@@ -102,6 +95,7 @@ fn setup(mut commands: Commands) {
                 GlobalTransform::default(),
             ));
             builder.spawn((
+                Name::new("ClipCube"),
                 Shape {
                     shape_type: Cube {
                         size: Vec3::new(1.0, 1.0, 1.0),
@@ -112,6 +106,7 @@ fn setup(mut commands: Commands) {
                 GlobalTransform::default(),
             ));
             builder.spawn((
+                Name::new("HoleCubeX"),
                 Shape {
                     shape_type: Cube {
                         size: Vec3::new(1.1, 0.4, 0.4),
@@ -122,6 +117,7 @@ fn setup(mut commands: Commands) {
                 GlobalTransform::default(),
             ));
             builder.spawn((
+                Name::new("HoleCubeY"),
                 Shape {
                     shape_type: Cube {
                         size: Vec3::new(0.4, 1.1, 0.4),
@@ -132,6 +128,7 @@ fn setup(mut commands: Commands) {
                 GlobalTransform::default(),
             ));
             builder.spawn((
+                Name::new("HoleCubeZ"),
                 Shape {
                     shape_type: Cube {
                         size: Vec3::new(0.4, 0.4, 1.1),

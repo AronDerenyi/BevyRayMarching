@@ -38,7 +38,7 @@ pub struct Shape {
     pub negative: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum ShapeType {
     Plane,
     Sphere { radius: f32 },
