@@ -65,16 +65,6 @@ fn main(@location(0) uv: vec2<f32>) ->
     let screen_uv = vec2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
     let pos = camera.position;
     let dir = get_direction(screen_uv);
-    let rad = sqrt(max(
-        max(
-            length_squared(dir - get_direction(screen_uv + vec2(-stage.texel_size.x, -stage.texel_size.y))),
-            length_squared(dir - get_direction(screen_uv + vec2(stage.texel_size.x, -stage.texel_size.y)))
-        ),
-        max(
-            length_squared(dir - get_direction(screen_uv + vec2(-stage.texel_size.x, stage.texel_size.y))),
-            length_squared(dir - get_direction(screen_uv + vec2(stage.texel_size.x, stage.texel_size.y)))
-        )
-    ));
 
     #ifdef FIRST_STAGE
         var distance = 0.0;
@@ -83,12 +73,34 @@ fn main(@location(0) uv: vec2<f32>) ->
     #endif
 
     #ifndef LAST_STAGE
+        let rad = sqrt(max(
+            max(
+                length_squared(dir - get_direction(screen_uv + vec2(-stage.texel_size.x, -stage.texel_size.y))),
+                length_squared(dir - get_direction(screen_uv + vec2(stage.texel_size.x, -stage.texel_size.y)))
+            ),
+            max(
+                length_squared(dir - get_direction(screen_uv + vec2(-stage.texel_size.x, stage.texel_size.y))),
+                length_squared(dir - get_direction(screen_uv + vec2(stage.texel_size.x, stage.texel_size.y)))
+            )
+        ));
+
         for (var i = 0u; i < 8u; i = i + 1u) {
             let step = sdf(pos + dir * distance);
             distance = clamp((distance + step) / (1.0 + rad), distance, 1024.0);
         }
         return distance;
     #else
+        let rad = sqrt(min(
+            min(
+                length_squared(dir - get_direction(screen_uv + vec2(-stage.texel_size.x, 0.0))),
+                length_squared(dir - get_direction(screen_uv + vec2(stage.texel_size.x, 0.0)))
+            ),
+            min(
+                length_squared(dir - get_direction(screen_uv + vec2(0.0, -stage.texel_size.y))),
+                length_squared(dir - get_direction(screen_uv + vec2(0.0, stage.texel_size.y)))
+            )
+        ));
+
         var collided = false;
         while (distance < 1024.0) {
             let step = sdf(pos + dir * distance);
