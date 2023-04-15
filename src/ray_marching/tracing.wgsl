@@ -101,8 +101,16 @@ fn main(@location(0) uv: vec2<f32>) ->
             )
         ));
 
+        #ifdef ITERATIONS
+            var iterations = 0u;
+        #endif
+
         var collided = false;
         while (distance < 1024.0) {
+            #ifdef ITERATIONS
+                iterations += 1u;
+            #endif
+
             let step = sdf(pos + dir * distance);
             if step >= distance * rad {
                 distance = distance + step;
@@ -114,8 +122,23 @@ fn main(@location(0) uv: vec2<f32>) ->
 
         if collided {
             let normal = normal(pos + dir * distance);
-            let ambient_occlusion = ambient_occlusion(pos + dir * distance, normal);
-            return vec4(vec3(1.0, 1.0, 1.0) * (0.6 + ambient_occlusion * 0.4) * (normal.z * 0.5 + 0.5), 1.0);
+            var color = vec3(1.0);
+
+            #ifdef LIGHTING
+                color *= (normal.z * 0.4 + 0.6);
+            #endif
+
+            #ifdef AMBIENT_OCCLUSION
+                let ambient_occlusion = ambient_occlusion(pos + dir * distance, normal);
+                color *= (0.6 + ambient_occlusion * 0.4);
+            #endif
+
+            #ifdef ITERATIONS
+                let iterations = f32(iterations) / 32.0;
+                color *= vec3(min(1.0, iterations), clamp(2.0 - iterations, 0.0, 1.0), 0.0);
+            #endif
+
+            return vec4(color, 1.0);
         } else {
             return vec4(vec3(0.0), 1.0);
         }

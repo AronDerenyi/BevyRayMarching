@@ -130,7 +130,7 @@ struct Cube {
 #[derive(Resource, Default)]
 struct ShapesUniformBuffer(UniformBuffer<ShapesUniform>);
 
-#[derive(Resource, PartialEq, Eq, Clone)]
+#[derive(Resource, PartialEq, Eq, Clone, Hash)]
 pub struct ShapeGroup {
     pub plane_index_range: Range<u8>,
     pub sphere_index_range: Range<u8>,
@@ -140,7 +140,7 @@ pub struct ShapeGroup {
     pub negative: bool,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum ShapeGroupOperation {
     Min,
     Max,
