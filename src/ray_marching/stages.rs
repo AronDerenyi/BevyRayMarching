@@ -55,6 +55,7 @@ fn prepare_stages(
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
 ) {
+    uniform_buffer.0.clear();
     let entities = cameras
         .iter()
         .filter_map(|(entity, camera)| {

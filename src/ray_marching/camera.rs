@@ -72,6 +72,7 @@ fn prepare_cameras(
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
 ) {
+    uniform_buffer.0.clear();
     let entities = cameras
         .iter()
         .map(|(entity, camera)| match &camera.projection {
