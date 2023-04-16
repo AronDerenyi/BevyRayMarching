@@ -8,11 +8,8 @@ struct View {
 };
 
 struct Shapes {
-    plane_count: u32,
     planes: array<Plane, #{MAX_PLANES}>,
-    sphere_count: u32,
     spheres: array<Sphere, #{MAX_SPHERES}>,
-    cube_count: u32,
     cubes: array<Cube, #{MAX_CUBES}>,
 };
 

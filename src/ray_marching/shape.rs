@@ -1,8 +1,3 @@
-use std::{
-    borrow::Borrow,
-    ops::{Deref, Range},
-};
-
 use bevy::{
     ecs::query::QueryItem,
     math::Vec3A,
@@ -16,6 +11,10 @@ use bevy::{
         renderer::{RenderDevice, RenderQueue},
         RenderApp, RenderSet,
     },
+};
+use std::{
+    borrow::Borrow,
+    ops::{Deref, Range},
 };
 
 pub struct ShapePlugin;
@@ -99,11 +98,8 @@ pub const MAX_CUBES: u8 = 24;
 
 #[derive(ShaderType, Clone, Default)]
 struct ShapesUniform {
-    plane_count: u32,
     planes: [Plane; MAX_PLANES as usize],
-    sphere_count: u32,
     spheres: [Sphere; MAX_SPHERES as usize],
-    cube_count: u32,
     cubes: [Cube; MAX_CUBES as usize],
 }
 
@@ -169,10 +165,6 @@ fn prepare_shapes(
         &mut cube_index,
     );
     commands.insert_resource(root_group);
-
-    uniform.plane_count = plane_index as u32;
-    uniform.sphere_count = sphere_index as u32;
-    uniform.cube_count = cube_index as u32;
 
     uniform_buffer.0.set(uniform);
     uniform_buffer.0.write_buffer(&*device, &*queue);
