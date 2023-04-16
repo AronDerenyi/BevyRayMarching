@@ -84,7 +84,7 @@ fn main(@location(0) uv: vec2<f32>) ->
             )
         ));
 
-        for (var i = 0u; i < 8u; i = i + 1u) {
+        for (var i = 0u; i < #{ITERATIONS}u; i = i + 1u) {
             let step = sdf(pos + dir * distance);
             distance = clamp((distance + step) / (1.0 + rad), distance, 1024.0);
         }

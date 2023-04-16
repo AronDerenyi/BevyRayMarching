@@ -96,8 +96,12 @@ struct TracingPipelineKey {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 enum TracingPipelineVariant {
-    First,
-    Mid,
+    First {
+        iterations: u32,
+    },
+    Mid {
+        iterations: u32,
+    },
     Last {
         draw_lighting: bool,
         draw_ambient_occlusion: bool,
@@ -117,13 +121,15 @@ impl SpecializedRenderPipeline for TracingPipeline {
         ];
 
         let (label, format) = match key.variant {
-            TracingPipelineVariant::First => {
+            TracingPipelineVariant::First { iterations } => {
                 layout.push(self.first_stage_layout.clone());
                 shader_defs.push("FIRST_STAGE".into());
+                shader_defs.push(ShaderDefVal::UInt("ITERATIONS".into(), iterations));
                 ("first_tracing_pipeline", TextureFormat::R32Float)
             }
-            TracingPipelineVariant::Mid => {
+            TracingPipelineVariant::Mid { iterations } => {
                 layout.push(self.mid_stage_layout.clone());
+                shader_defs.push(ShaderDefVal::UInt("ITERATIONS".into(), iterations));
                 ("mid_tracing_pipeline", TextureFormat::R32Float)
             }
             TracingPipelineVariant::Last {
@@ -197,7 +203,9 @@ fn queue_pipelines(
                             &pipeline,
                             TracingPipelineKey {
                                 handle: handle.clone(),
-                                variant: TracingPipelineVariant::First,
+                                variant: TracingPipelineVariant::First {
+                                    iterations: ray_marching.iterations,
+                                },
                             },
                         ),
                         mid_id: specialized_pipeline.specialize(
@@ -205,7 +213,9 @@ fn queue_pipelines(
                             &pipeline,
                             TracingPipelineKey {
                                 handle: handle.clone(),
-                                variant: TracingPipelineVariant::Mid,
+                                variant: TracingPipelineVariant::Mid {
+                                    iterations: ray_marching.iterations,
+                                },
                             },
                         ),
                         last_id: specialized_pipeline.specialize(
