@@ -1,9 +1,9 @@
 use super::{
-    camera::{CameraBindGroup, CameraUniformIndex},
     shape::ShapesBindGroup,
-    stages::{StageBindGroups, StageIndices, StageTextures},
+    stages::{StageBindGroups, StageUniformIndices, StageTextures},
     tracing::TracingPipelines,
     upsampling::UpsamplingPipeline,
+    view::{ViewBindGroup, ViewUniformIndex},
 };
 use bevy::{
     prelude::*,
@@ -19,9 +19,9 @@ pub(super) struct RayMarchingNode {
     view_query: QueryState<(
         &'static ExtractedCamera,
         &'static ViewTarget,
-        &'static CameraUniformIndex,
+        &'static ViewUniformIndex,
         &'static StageTextures,
-        &'static StageIndices,
+        &'static StageUniformIndices,
         &'static StageBindGroups,
         &'static TracingPipelines,
     )>,
@@ -52,7 +52,7 @@ impl Node for RayMarchingNode {
         let Ok((
             camera,
             target,
-            camera_index,
+            view_index,
             stage_textures,
             stage_indices,
             stage_bind_groups,
@@ -75,7 +75,7 @@ impl Node for RayMarchingNode {
             return Ok(());
         };
 
-        let camera_bind_group = world.resource::<CameraBindGroup>();
+        let view_bind_group = world.resource::<ViewBindGroup>();
         let shapes_bind_group = world.resource::<ShapesBindGroup>();
 
         {
@@ -93,7 +93,7 @@ impl Node for RayMarchingNode {
             });
 
             render_pass.set_render_pipeline(first_tracing_pipeline);
-            render_pass.set_bind_group(0, camera_bind_group, &[camera_index.index()]);
+            render_pass.set_bind_group(0, view_bind_group, &[view_index.index()]);
             render_pass.set_bind_group(1, shapes_bind_group, &[]);
             render_pass.set_bind_group(2, &stage_bind_groups.first, &[stage_indices.first]);
             render_pass.draw(0..3, 0..1);
@@ -114,7 +114,7 @@ impl Node for RayMarchingNode {
             });
 
             render_pass.set_render_pipeline(mid_tracing_pipeline);
-            render_pass.set_bind_group(0, camera_bind_group, &[camera_index.index()]);
+            render_pass.set_bind_group(0, view_bind_group, &[view_index.index()]);
             render_pass.set_bind_group(1, shapes_bind_group, &[]);
             render_pass.set_bind_group(
                 2,
@@ -139,7 +139,7 @@ impl Node for RayMarchingNode {
             });
 
             render_pass.set_render_pipeline(last_tracing_pipeline);
-            render_pass.set_bind_group(0, camera_bind_group, &[camera_index.index()]);
+            render_pass.set_bind_group(0, view_bind_group, &[view_index.index()]);
             render_pass.set_bind_group(1, shapes_bind_group, &[]);
             render_pass.set_bind_group(2, &stage_bind_groups.last, &[stage_indices.last]);
             render_pass.draw(0..3, 0..1);

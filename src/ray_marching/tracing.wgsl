@@ -1,6 +1,6 @@
 #import bevy_core_pipeline::fullscreen_vertex_shader
 
-struct Camera {
+struct View {
     position: vec3<f32>,
     right: vec3<f32>,
     up: vec3<f32>,
@@ -38,7 +38,7 @@ struct Stage {
 }
 
 @group(0) @binding(0)
-var<uniform> camera: Camera;
+var<uniform> view: View;
 @group(1) @binding(0)
 var<uniform> shapes: Shapes;
 
@@ -63,7 +63,7 @@ fn main(@location(0) uv: vec2<f32>) ->
 #endif
 {
     let screen_uv = vec2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
-    let pos = camera.position;
+    let pos = view.position;
     let dir = get_direction(screen_uv);
 
     #ifdef FIRST_STAGE
@@ -189,9 +189,9 @@ fn sdf_cube(id: u32, pnt: vec3<f32>) -> f32 {
 
 fn get_direction(uv: vec2<f32>) -> vec3<f32> {
     return normalize(
-        camera.right * uv.x +
-        camera.up * uv.y +
-        camera.forward
+        view.right * uv.x +
+        view.up * uv.y +
+        view.forward
     );
 }
 

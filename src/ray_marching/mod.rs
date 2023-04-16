@@ -1,14 +1,14 @@
-mod camera;
 mod node;
 mod shape;
 mod stages;
 mod tracing;
 mod upsampling;
+mod view;
 
 pub use self::shape::{Shape, ShapeType};
 use self::{
-    camera::CameraPlugin, node::RayMarchingNode, shape::ShapePlugin, stages::StagesPlugin,
-    tracing::TracingPlugin, upsampling::UpsamplingPlugin,
+    node::RayMarchingNode, shape::ShapePlugin, stages::StagesPlugin, tracing::TracingPlugin,
+    upsampling::UpsamplingPlugin, view::ViewPlugin,
 };
 use bevy::{
     core_pipeline::core_3d,
@@ -26,7 +26,7 @@ pub struct RayMarchingPlugin;
 impl Plugin for RayMarchingPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(ExtractComponentPlugin::<RayMarching>::default())
-            .add_plugin(CameraPlugin)
+            .add_plugin(ViewPlugin)
             .add_plugin(ShapePlugin)
             .add_plugin(StagesPlugin)
             .add_plugin(TracingPlugin)

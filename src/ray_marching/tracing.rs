@@ -1,7 +1,7 @@
 use super::{
-    camera::CameraBindGroupLayout,
     shape::{ShapeGroup, ShapesBindGroupLayout, MAX_CUBES, MAX_PLANES, MAX_SPHERES},
     stages::StageBindGroupLayouts,
+    view::ViewBindGroupLayout,
     RayMarching,
 };
 use crate::ray_marching::shape::ShapeGroupOperation;
@@ -66,7 +66,7 @@ fn extract_shader(
 
 #[derive(Resource)]
 struct TracingPipeline {
-    camera_layout: BindGroupLayout,
+    view_layout: BindGroupLayout,
     shapes_layout: BindGroupLayout,
     first_stage_layout: BindGroupLayout,
     mid_stage_layout: BindGroupLayout,
@@ -75,11 +75,11 @@ struct TracingPipeline {
 
 impl FromWorld for TracingPipeline {
     fn from_world(world: &mut bevy::prelude::World) -> Self {
-        let camera_bind_group_layout = world.resource::<CameraBindGroupLayout>();
+        let view_bind_group_layout = world.resource::<ViewBindGroupLayout>();
         let shapes_bind_group_layout = world.resource::<ShapesBindGroupLayout>();
         let stage_bind_group_layouts = world.resource::<StageBindGroupLayouts>();
         Self {
-            camera_layout: (*camera_bind_group_layout).clone(),
+            view_layout: (*view_bind_group_layout).clone(),
             shapes_layout: (*shapes_bind_group_layout).clone(),
             first_stage_layout: stage_bind_group_layouts.first.clone(),
             mid_stage_layout: stage_bind_group_layouts.mid.clone(),
@@ -113,7 +113,7 @@ impl SpecializedRenderPipeline for TracingPipeline {
     type Key = TracingPipelineKey;
 
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
-        let mut layout = vec![self.camera_layout.clone(), self.shapes_layout.clone()];
+        let mut layout = vec![self.view_layout.clone(), self.shapes_layout.clone()];
         let mut shader_defs = vec![
             ShaderDefVal::Int("MAX_PLANES".into(), MAX_PLANES as i32),
             ShaderDefVal::Int("MAX_SPHERES".into(), MAX_SPHERES as i32),

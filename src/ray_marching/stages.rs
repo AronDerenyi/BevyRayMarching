@@ -34,7 +34,7 @@ pub struct StageTextures {
 }
 
 #[derive(Component)]
-pub struct StageIndices {
+pub struct StageUniformIndices {
     pub first: u32,
     pub mid: Vec<u32>,
     pub last: u32,
@@ -166,7 +166,7 @@ fn prepare_stages(
                             mid: mid_textures,
                             last: last_texture,
                         },
-                        StageIndices {
+                        StageUniformIndices {
                             first: first_index,
                             mid: mid_indices,
                             last: last_index,
