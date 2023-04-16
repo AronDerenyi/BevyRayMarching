@@ -13,6 +13,7 @@ use bevy::{
         RenderApp, RenderSet,
     },
 };
+use log::warn;
 use std::ops::Deref;
 
 pub struct ViewPlugin;
@@ -46,6 +47,7 @@ impl ExtractComponent for ExtractedProjection {
                 aspect_ratio: projection.aspect_ratio,
             })
         } else {
+            warn!("Unsupported projection: {:?}", projection);
             None
         }
     }
