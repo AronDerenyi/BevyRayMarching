@@ -23,6 +23,7 @@ pub(super) struct RayMarchingNode {
         &'static StageTextures,
         &'static StageIndices,
         &'static StageBindGroups,
+        &'static TracingPipelines,
     )>,
 }
 
@@ -45,33 +46,31 @@ impl Node for RayMarchingNode {
         world: &World,
     ) -> Result<(), bevy::render::render_graph::NodeRunError> {
         let pipeline_cache = world.resource::<PipelineCache>();
-        let tracing_pipelines = world.resource::<TracingPipelines>();
         let upsampling_pipeline = world.resource::<UpsamplingPipeline>();
         let view_entity = graph.get_input_entity(Self::IN_VIEW)?;
 
-        if tracing_pipelines.invalid {
+        let Ok((
+            camera,
+            target,
+            camera_index,
+            stage_textures,
+            stage_indices,
+            stage_bind_groups,
+            tracing_pipelines,
+        )) = self.view_query.get_manual(world, view_entity) else {
             return Ok(());
-        }
+        };
 
         let (
             Some(first_tracing_pipeline),
             Some(mid_tracing_pipeline),
             Some(last_tracing_pipeline),
             Some(upsampling_pipeline),
-            Ok((
-                camera,
-                target,
-                camera_index,
-                stage_textures,
-                stage_indices,
-                stage_bind_groups,
-            )),
         ) = (
             pipeline_cache.get_render_pipeline(tracing_pipelines.first_id),
             pipeline_cache.get_render_pipeline(tracing_pipelines.mid_id),
             pipeline_cache.get_render_pipeline(tracing_pipelines.last_id),
             pipeline_cache.get_render_pipeline(upsampling_pipeline.id),
-            self.view_query.get_manual(world, view_entity),
         ) else {
             return Ok(());
         };

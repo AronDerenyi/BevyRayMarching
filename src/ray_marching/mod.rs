@@ -13,7 +13,11 @@ use self::{
 use bevy::{
     core_pipeline::core_3d,
     prelude::*,
-    render::{render_graph::RenderGraph, RenderApp},
+    render::{
+        extract_component::{ExtractComponent, ExtractComponentPlugin},
+        render_graph::RenderGraph,
+        RenderApp,
+    },
 };
 
 #[derive(Default)]
@@ -21,7 +25,8 @@ pub struct RayMarchingPlugin;
 
 impl Plugin for RayMarchingPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(CameraPlugin)
+        app.add_plugin(ExtractComponentPlugin::<RayMarching>::default())
+            .add_plugin(CameraPlugin)
             .add_plugin(ShapePlugin)
             .add_plugin(StagesPlugin)
             .add_plugin(TracingPlugin)
@@ -45,5 +50,32 @@ impl Plugin for RayMarchingPlugin {
             RayMarchingNode::IN_VIEW,
         );
         graph_3d.add_node_edge(core_3d::graph::node::MAIN_PASS, RayMarchingNode::NAME);
+    }
+}
+
+#[derive(Component, Clone, ExtractComponent)]
+pub struct RayMarching {
+    pub resolution_start: u32,
+    pub resolution_scaling: u32,
+    pub resolution_scale: f32,
+
+    pub iterations: u32,
+
+    pub draw_lighting: bool,
+    pub draw_ambient_occlusion: bool,
+    pub draw_iterations: bool,
+}
+
+impl Default for RayMarching {
+    fn default() -> Self {
+        Self {
+            resolution_start: 16,
+            resolution_scaling: 2,
+            resolution_scale: 0.5,
+            iterations: 8,
+            draw_lighting: true,
+            draw_ambient_occlusion: true,
+            draw_iterations: false,
+        }
     }
 }

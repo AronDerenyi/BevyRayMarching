@@ -101,13 +101,13 @@ fn main(@location(0) uv: vec2<f32>) ->
             )
         ));
 
-        #ifdef ITERATIONS
+        #ifdef DRAW_ITERATIONS
             var iterations = 0u;
         #endif
 
         var collided = false;
         while (distance < 1024.0) {
-            #ifdef ITERATIONS
+            #ifdef DRAW_ITERATIONS
                 iterations += 1u;
             #endif
 
@@ -124,16 +124,16 @@ fn main(@location(0) uv: vec2<f32>) ->
             let normal = normal(pos + dir * distance);
             var color = vec3(1.0);
 
-            #ifdef LIGHTING
+            #ifdef DRAW_LIGHTING
                 color *= (normal.z * 0.4 + 0.6);
             #endif
 
-            #ifdef AMBIENT_OCCLUSION
+            #ifdef DRAW_AMBIENT_OCCLUSION
                 let ambient_occlusion = ambient_occlusion(pos + dir * distance, normal);
                 color *= (0.6 + ambient_occlusion * 0.4);
             #endif
 
-            #ifdef ITERATIONS
+            #ifdef DRAW_ITERATIONS
                 let iterations = f32(iterations) / 32.0;
                 color *= vec3(min(1.0, iterations), clamp(2.0 - iterations, 0.0, 1.0), 0.0);
             #endif

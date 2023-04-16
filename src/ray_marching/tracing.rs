@@ -2,13 +2,14 @@ use super::{
     camera::CameraBindGroupLayout,
     shape::{ShapeGroup, ShapesBindGroupLayout, MAX_CUBES, MAX_PLANES, MAX_SPHERES},
     stages::StageBindGroupLayouts,
+    RayMarching,
 };
 use crate::ray_marching::shape::ShapeGroupOperation;
 use bevy::{
     core_pipeline::fullscreen_vertex_shader::fullscreen_shader_vertex_state,
     prelude::{
-        default, Assets, EventReader, EventWriter, FromWorld, Handle, IntoSystemAppConfig,
-        IntoSystemConfig, Local, Plugin, Res, ResMut, Resource,
+        default, Assets, Commands, Component, Entity, FromWorld, Handle, IntoSystemAppConfig,
+        IntoSystemConfig, Plugin, Query, Res, ResMut, Resource,
     },
     render::{render_resource::*, ExtractSchedule, MainWorld, RenderApp, RenderSet},
     utils::HashMap,
@@ -25,7 +26,6 @@ impl Plugin for TracingPlugin {
             .init_resource::<ShaderCache>()
             .init_resource::<TracingPipeline>()
             .init_resource::<SpecializedRenderPipelines<TracingPipeline>>()
-            .init_resource::<TracingPipelines>()
             .add_system(extract_shader.in_schedule(ExtractSchedule))
             .add_system(queue_pipelines.in_set(RenderSet::Queue));
     }
@@ -99,9 +99,9 @@ enum TracingPipelineVariant {
     First,
     Mid,
     Last {
-        lighting: bool,
-        ambient_occlusion: bool,
-        iterations: bool,
+        draw_lighting: bool,
+        draw_ambient_occlusion: bool,
+        draw_iterations: bool,
     },
 }
 
@@ -127,20 +127,20 @@ impl SpecializedRenderPipeline for TracingPipeline {
                 ("mid_tracing_pipeline", TextureFormat::R32Float)
             }
             TracingPipelineVariant::Last {
-                lighting,
-                ambient_occlusion,
-                iterations,
+                draw_lighting: lighting,
+                draw_ambient_occlusion: ambient_occlusion,
+                draw_iterations: iterations,
             } => {
                 layout.push(self.last_stage_layout.clone());
                 shader_defs.push("LAST_STAGE".into());
                 if lighting {
-                    shader_defs.push("LIGHTING".into());
+                    shader_defs.push("DRAW_LIGHTING".into());
                 }
                 if ambient_occlusion {
-                    shader_defs.push("AMBIENT_OCCLUSION".into());
+                    shader_defs.push("DRAW_AMBIENT_OCCLUSION".into());
                 }
                 if iterations {
-                    shader_defs.push("ITERATIONS".into());
+                    shader_defs.push("DRAW_ITERATIONS".into());
                 }
                 ("last_tracing_pipeline", TextureFormat::Rgba8Unorm)
             }
@@ -168,27 +168,16 @@ impl SpecializedRenderPipeline for TracingPipeline {
     }
 }
 
-#[derive(Resource)]
+#[derive(Component)]
 pub struct TracingPipelines {
-    pub invalid: bool,
     pub first_id: CachedRenderPipelineId,
     pub mid_id: CachedRenderPipelineId,
     pub last_id: CachedRenderPipelineId,
 }
 
-impl Default for TracingPipelines {
-    fn default() -> Self {
-        Self {
-            invalid: true,
-            first_id: CachedRenderPipelineId::INVALID,
-            mid_id: CachedRenderPipelineId::INVALID,
-            last_id: CachedRenderPipelineId::INVALID,
-        }
-    }
-}
-
 fn queue_pipelines(
-    mut pipelines: ResMut<TracingPipelines>,
+    mut commands: Commands,
+    entities: Query<(Entity, &RayMarching)>,
     shape_group: Res<ShapeGroup>,
     shader_cache: Res<ShaderCache>,
     pipeline_cache: Res<PipelineCache>,
@@ -197,40 +186,46 @@ fn queue_pipelines(
 ) {
     let handle = shader_cache.get(&shape_group);
     if let Some(handle) = handle {
-        pipelines.invalid = false;
-        pipelines.first_id = specialized_pipeline.specialize(
-            &pipeline_cache,
-            &pipeline,
-            TracingPipelineKey {
-                handle: handle.clone(),
-                variant: TracingPipelineVariant::First,
-            },
-        );
-        pipelines.mid_id = specialized_pipeline.specialize(
-            &pipeline_cache,
-            &pipeline,
-            TracingPipelineKey {
-                handle: handle.clone(),
-                variant: TracingPipelineVariant::Mid,
-            },
-        );
-        pipelines.last_id = specialized_pipeline.specialize(
-            &pipeline_cache,
-            &pipeline,
-            TracingPipelineKey {
-                handle: handle.clone(),
-                variant: TracingPipelineVariant::Last {
-                    lighting: true,
-                    ambient_occlusion: true,
-                    iterations: false,
-                },
-            },
-        );
-    } else {
-        pipelines.invalid = true;
-        pipelines.first_id = CachedRenderPipelineId::INVALID;
-        pipelines.mid_id = CachedRenderPipelineId::INVALID;
-        pipelines.last_id = CachedRenderPipelineId::INVALID;
+        let entities = entities
+            .iter()
+            .map(|(entity, ray_marching)| {
+                (
+                    entity,
+                    TracingPipelines {
+                        first_id: specialized_pipeline.specialize(
+                            &pipeline_cache,
+                            &pipeline,
+                            TracingPipelineKey {
+                                handle: handle.clone(),
+                                variant: TracingPipelineVariant::First,
+                            },
+                        ),
+                        mid_id: specialized_pipeline.specialize(
+                            &pipeline_cache,
+                            &pipeline,
+                            TracingPipelineKey {
+                                handle: handle.clone(),
+                                variant: TracingPipelineVariant::Mid,
+                            },
+                        ),
+                        last_id: specialized_pipeline.specialize(
+                            &pipeline_cache,
+                            &pipeline,
+                            TracingPipelineKey {
+                                handle: handle.clone(),
+                                variant: TracingPipelineVariant::Last {
+                                    draw_lighting: ray_marching.draw_lighting,
+                                    draw_ambient_occlusion: ray_marching.draw_ambient_occlusion,
+                                    draw_iterations: ray_marching.draw_iterations,
+                                },
+                            },
+                        ),
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+
+        commands.insert_or_spawn_batch(entities);
     }
 }
 

@@ -4,12 +4,13 @@ use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::{diagnostic::LogDiagnosticsPlugin, input::mouse::MouseWheel};
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
+use ray_marching::RayMarching;
 use ray_marching::{
     RayMarchingPlugin, Shape,
     ShapeType::{Cube, Intersection, Plane, Sphere},
 };
-use user_interface::UIPlugin;
 use std::f32::consts;
+use user_interface::UIPlugin;
 
 /*
 LogPlugin {
@@ -65,6 +66,12 @@ fn setup(mut commands: Commands) {
                 //                }),
                 ..default()
             },
+            ..default()
+        },
+        RayMarching {
+            draw_lighting: false,
+            draw_ambient_occlusion: false,
+            draw_iterations: false,
             ..default()
         },
         OrbitControls {

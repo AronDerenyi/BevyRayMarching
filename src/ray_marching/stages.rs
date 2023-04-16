@@ -1,3 +1,4 @@
+use super::RayMarching;
 use bevy::{
     prelude::{
         Commands, Component, Entity, FromWorld, IntoSystemConfig, Plugin, Query, Res, ResMut,
@@ -51,37 +52,41 @@ fn prepare_stages(
     mut commands: Commands,
     mut texture_cache: ResMut<TextureCache>,
     mut uniform_buffer: ResMut<StageUniformBuffer>,
-    cameras: Query<(Entity, &ExtractedCamera)>,
+    cameras: Query<(Entity, &RayMarching, &ExtractedCamera)>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
 ) {
     uniform_buffer.0.clear();
     let entities = cameras
         .iter()
-        .filter_map(|(entity, camera)| {
+        .filter_map(|(entity, ray_marching, camera)| {
             if let Some(UVec2 {
                 x: width,
                 y: height,
             }) = camera.physical_viewport_size
             {
-                let width = width / 2;
-                let height = height / 2;
-                let scaling: u32 = 2;
-                let min_resolution = 16.min(width / scaling).min(height / scaling).max(1);
+                let width = (width as f32 * ray_marching.resolution_scale) as u32;
+                let height = (height as f32 * ray_marching.resolution_scale) as u32;
+                let scaling: u32 = ray_marching.resolution_scaling;
+                let start = ray_marching
+                    .resolution_start
+                    .min(width / scaling)
+                    .min(height / scaling)
+                    .max(1);
 
-                let (min_width, min_height) = if height < width {
+                let (start_width, start_height) = if height < width {
                     (
-                        ((min_resolution * width) as f32 / height as f32).round() as u32,
-                        min_resolution,
+                        ((start * width) as f32 / height as f32).round() as u32,
+                        start,
                     )
                 } else {
                     (
-                        min_resolution,
-                        ((min_resolution * height) as f32 / width as f32).round() as u32,
+                        start,
+                        ((start * height) as f32 / width as f32).round() as u32,
                     )
                 };
 
-                let mid_stages = u32::min(width / min_width, height / min_height).ilog(scaling);
+                let mid_stages = u32::min(width / start_width, height / start_height).ilog(scaling);
 
                 let descriptor = TextureDescriptor {
                     label: Some("stage_texture"),
@@ -98,8 +103,8 @@ fn prepare_stages(
                     view_formats: &[],
                 };
 
-                let w = min_width;
-                let h = min_height;
+                let w = start_width;
+                let h = start_height;
                 let first_index = uniform_buffer.0.push(StageUniform {
                     texel_size: Vec2::new(1.0 / w as f32, 1.0 / h as f32),
                 });
@@ -119,8 +124,8 @@ fn prepare_stages(
                 let mut mid_textures = Vec::<CachedTexture>::with_capacity(mid_stages as usize);
                 for stage in 1..=mid_stages {
                     let scale = scaling.pow(stage);
-                    let w = min_width * scale;
-                    let h = min_height * scale;
+                    let w = start_width * scale;
+                    let h = start_height * scale;
                     mid_indices.push(uniform_buffer.0.push(StageUniform {
                         texel_size: Vec2::new(1.0 / w as f32, 1.0 / h as f32),
                     }));
@@ -308,8 +313,8 @@ impl FromWorld for StageSamplers {
                 ..Default::default()
             }),
             upsampling: device.create_sampler(&SamplerDescriptor {
-                min_filter: FilterMode::Nearest,
-                mag_filter: FilterMode::Nearest,
+                min_filter: FilterMode::Linear,
+                mag_filter: FilterMode::Linear,
                 address_mode_u: AddressMode::ClampToEdge,
                 address_mode_v: AddressMode::ClampToEdge,
                 ..Default::default()
