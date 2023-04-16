@@ -12,6 +12,7 @@ use self::{
 };
 use bevy::{
     core_pipeline::core_3d,
+    ecs::query::QueryItem,
     prelude::*,
     render::{
         extract_component::{ExtractComponent, ExtractComponentPlugin},
@@ -53,7 +54,7 @@ impl Plugin for RayMarchingPlugin {
     }
 }
 
-#[derive(Component, Clone, ExtractComponent)]
+#[derive(Component, Clone)]
 pub struct RayMarching {
     pub resolution_start: u32,
     pub resolution_scaling: u32,
@@ -77,5 +78,15 @@ impl Default for RayMarching {
             draw_ambient_occlusion: true,
             draw_iterations: false,
         }
+    }
+}
+
+impl ExtractComponent for RayMarching {
+    type Query = &'static Self;
+    type Filter = With<Camera>;
+    type Out = Self;
+
+    fn extract_component(ray_marching: QueryItem<'_, Self::Query>) -> Option<Self::Out> {
+        Some(ray_marching.clone())
     }
 }
