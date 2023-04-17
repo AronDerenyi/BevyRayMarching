@@ -1,5 +1,5 @@
 use super::SelectedShape;
-use crate::ray_marching::{Shape, ShapeType};
+use crate::ray_marching::{Material, Shape, ShapeType};
 use bevy::prelude::{
     BuildChildren, Commands, DespawnRecursiveExt, Entity, EulerRot, Mut, Name, Parent, Quat, Query,
     Res, Transform, Vec3,
@@ -19,6 +19,7 @@ pub fn ui(
         Option<&Parent>,
         &mut Transform,
         &mut Shape,
+        Option<&mut Material>,
     )>,
 ) {
     let Some(selected_entity) = selected_shape.0 else {
@@ -36,7 +37,7 @@ pub fn ui(
         })
         .collect::<Vec<(Entity, String)>>();
 
-    let Ok((entity, name, parent, transform, shape)) = shapes.get_mut(selected_entity) else {
+    let Ok((entity, name, parent, transform, shape, material)) = shapes.get_mut(selected_entity) else {
         return
     };
 
@@ -48,6 +49,14 @@ pub fn ui(
             transform_ui(ui, transform);
             ui.separator();
             shape_ui(ui, shape);
+            ui.separator();
+            if let Some(material) = material {
+                material_ui(ui, material);
+            } else {
+                if ui.button("Add material").clicked() {
+                    commands.entity(entity).insert(Material::default());
+                }
+            }
             ui.separator();
             if ui.button("Delete").clicked() {
                 commands.entity(entity).despawn_recursive();
@@ -76,7 +85,7 @@ fn name_parent_ui(
         let mut changed = false;
         ComboBox::new("parent", "")
             .selected_text(
-                    parent
+                parent
                     .map(|parent| {
                         parents
                             .iter()
@@ -164,6 +173,14 @@ fn shape_type_ui(ui: &mut Ui, shape_type: &mut ShapeType) {
         });
 }
 
+fn material_ui(ui: &mut Ui, mut material: Mut<Material>) {
+    Grid::new("material").num_columns(2).show(ui, |ui| {
+        ui.label("Color:");
+        color_ui(ui, &mut material.color);
+        ui.end_row();
+    });
+}
+
 fn scalar_ui(ui: &mut Ui, scalar: &mut f32) {
     ui.add(DragValue::new(scalar).speed(0.01));
 }
@@ -183,4 +200,15 @@ fn quat_ui(ui: &mut Ui, quat: &mut Quat) {
     let mut vec = Vec3::from(quat.to_euler(EulerRot::XYZ));
     vec_ui(ui, &mut vec);
     *quat = Quat::from_euler(EulerRot::XYZ, vec.x, vec.y, vec.z);
+}
+
+fn color_ui(ui: &mut Ui, vec: &mut Vec3) {
+    ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+        ui.label("R:");
+        scalar_ui(ui, &mut vec.x);
+        ui.label("G:");
+        scalar_ui(ui, &mut vec.y);
+        ui.label("B:");
+        scalar_ui(ui, &mut vec.z);
+    });
 }
