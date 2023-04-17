@@ -5,7 +5,7 @@ mod tracing;
 mod upsampling;
 mod view;
 
-pub use self::shape::{Shape, ShapeType};
+pub use self::shape::{Shape, ShapeType, Material};
 use self::{
     node::RayMarchingNode, shape::ShapePlugin, stages::StagesPlugin, tracing::TracingPlugin,
     upsampling::UpsamplingPlugin, view::ViewPlugin,
@@ -62,9 +62,10 @@ pub struct RayMarching {
 
     pub iterations: u32,
 
-    pub draw_lighting: bool,
-    pub draw_ambient_occlusion: bool,
-    pub draw_iterations: bool,
+    pub materials: bool,
+    pub lighting: bool,
+    pub ambient_occlusion: bool,
+    pub debug_iterations: bool,
 }
 
 impl Default for RayMarching {
@@ -74,9 +75,10 @@ impl Default for RayMarching {
             resolution_scaling: 2,
             resolution_scale: 0.5,
             iterations: 8,
-            draw_lighting: true,
-            draw_ambient_occlusion: true,
-            draw_iterations: false,
+            materials: true,
+            lighting: true,
+            ambient_occlusion: true,
+            debug_iterations: false,
         }
     }
 }

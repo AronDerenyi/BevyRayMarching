@@ -6,7 +6,7 @@ use bevy::{diagnostic::LogDiagnosticsPlugin, input::mouse::MouseWheel};
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use ray_marching::RayMarching;
 use ray_marching::{
-    RayMarchingPlugin, Shape,
+    Material, RayMarchingPlugin, Shape,
     ShapeType::{Cube, Intersection, Plane, Sphere},
 };
 use std::f32::consts;
@@ -69,9 +69,9 @@ fn setup(mut commands: Commands) {
             ..default()
         },
         RayMarching {
-            draw_lighting: false,
-            draw_ambient_occlusion: false,
-            draw_iterations: false,
+            lighting: true,
+            ambient_occlusion: true,
+            debug_iterations: false,
             ..default()
         },
         OrbitControls {
@@ -98,6 +98,9 @@ fn setup(mut commands: Commands) {
                     shape_type: Sphere { radius: 1.3 },
                     ..default()
                 },
+                Material {
+                    color: Vec3::new(1.0, 0.0, 0.0),
+                },
                 Transform::default(),
                 GlobalTransform::default(),
             ));
@@ -108,6 +111,9 @@ fn setup(mut commands: Commands) {
                         size: Vec3::new(1.0, 1.0, 1.0),
                     },
                     ..default()
+                },
+                Material {
+                    color: Vec3::new(0.0, 1.0, 0.0),
                 },
                 Transform::default(),
                 GlobalTransform::default(),
@@ -120,6 +126,9 @@ fn setup(mut commands: Commands) {
                     },
                     negative: true,
                 },
+                Material {
+                    color: Vec3::new(1.0, 0.0, 1.0),
+                },
                 Transform::default(),
                 GlobalTransform::default(),
             ));
@@ -131,6 +140,9 @@ fn setup(mut commands: Commands) {
                     },
                     negative: true,
                 },
+                Material {
+                    color: Vec3::new(0.0, 1.0, 1.0),
+                },
                 Transform::default(),
                 GlobalTransform::default(),
             ));
@@ -141,6 +153,9 @@ fn setup(mut commands: Commands) {
                         size: Vec3::new(0.4, 0.4, 1.1),
                     },
                     negative: true,
+                },
+                Material {
+                    color: Vec3::new(0.0, 0.0, 1.0),
                 },
                 Transform::default(),
                 GlobalTransform::default(),

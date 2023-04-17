@@ -55,8 +55,11 @@ fn extract_shader(
 ) {
     if let Some(shape_group) = shape_group {
         if !shader_cache.contains_key(&shape_group) {
-            let generated = generate_sdf(&shape_group);
-            let shader_source = format!("{}\n{}", SHADER_SOURCE, generated);
+            let sdf = generate_sdf(&shape_group);
+            let material = generate_material(&shape_group);
+            println!("{sdf}");
+            println!("{material}");
+            let shader_source = format!("{}\n{}\n{}", SHADER_SOURCE, sdf, material);
             let mut shaders = main_world.resource_mut::<Assets<Shader>>();
             let handle = shaders.add(Shader::from_wgsl(shader_source));
             shader_cache.insert((*shape_group).clone(), handle);
@@ -103,9 +106,10 @@ enum TracingPipelineVariant {
         iterations: u32,
     },
     Last {
-        draw_lighting: bool,
-        draw_ambient_occlusion: bool,
-        draw_iterations: bool,
+        materials: bool,
+        lighting: bool,
+        ambient_occlusion: bool,
+        debug_iterations: bool,
     },
 }
 
@@ -133,20 +137,24 @@ impl SpecializedRenderPipeline for TracingPipeline {
                 ("mid_tracing_pipeline", TextureFormat::R32Float)
             }
             TracingPipelineVariant::Last {
-                draw_lighting: lighting,
-                draw_ambient_occlusion: ambient_occlusion,
-                draw_iterations: iterations,
+                materials,
+                lighting,
+                ambient_occlusion,
+                debug_iterations,
             } => {
                 layout.push(self.last_stage_layout.clone());
                 shader_defs.push("LAST_STAGE".into());
+                if materials {
+                    shader_defs.push("MATERIALS".into());
+                }
                 if lighting {
-                    shader_defs.push("DRAW_LIGHTING".into());
+                    shader_defs.push("LIGHTING".into());
                 }
                 if ambient_occlusion {
-                    shader_defs.push("DRAW_AMBIENT_OCCLUSION".into());
+                    shader_defs.push("AMBIENT_OCCLUSION".into());
                 }
-                if iterations {
-                    shader_defs.push("DRAW_ITERATIONS".into());
+                if debug_iterations {
+                    shader_defs.push("DEBUG_ITERATIONS".into());
                 }
                 ("last_tracing_pipeline", TextureFormat::Rgba8Unorm)
             }
@@ -224,9 +232,10 @@ fn queue_pipelines(
                             TracingPipelineKey {
                                 handle: handle.clone(),
                                 variant: TracingPipelineVariant::Last {
-                                    draw_lighting: ray_marching.draw_lighting,
-                                    draw_ambient_occlusion: ray_marching.draw_ambient_occlusion,
-                                    draw_iterations: ray_marching.draw_iterations,
+                                    materials: ray_marching.materials,
+                                    lighting: ray_marching.lighting,
+                                    ambient_occlusion: ray_marching.ambient_occlusion,
+                                    debug_iterations: ray_marching.debug_iterations,
                                 },
                             },
                         ),
@@ -241,65 +250,134 @@ fn queue_pipelines(
 
 fn generate_sdf(group: &ShapeGroup) -> String {
     let mut group_index = 0u8;
-    let (source, dist) = generate_group_sdf(group, &mut group_index);
-
     format!(
-        "fn sdf(pnt: vec3<f32>) -> f32 {{
-{source}return {dist};
-}}"
+        "fn sdf(pnt: vec3<f32>) -> f32 {{\n{}return dist_0;\n}}",
+        generate_group_sdf(group, &mut group_index, false)
     )
 }
 
-fn generate_group_sdf(group: &ShapeGroup, index: &mut u8) -> (String, String) {
-    let dist = format!("dist_{}", index);
-    let operation = match group.operation {
-        ShapeGroupOperation::Min => "min",
-        ShapeGroupOperation::Max => "max",
-    };
+fn generate_material(group: &ShapeGroup) -> String {
+    let mut group_index = 0u8;
+    format!(
+        "fn material(pnt: vec3<f32>) -> Material {{\n{}return material_0;\n}}",
+        generate_group_sdf(group, &mut group_index, true)
+    )
+}
 
-    let planes = generate_shapes_sdf(dist.as_str(), operation, "plane", &group.plane_index_range);
-    let spheres = generate_shapes_sdf(
-        dist.as_str(),
-        operation,
+fn generate_group_sdf(group: &ShapeGroup, index: &mut u8, material: bool) -> String {
+    let group_index = *index;
+    *index += 1;
+
+    let mut source = format!(
+        "var dist_{group_index} = {};\n",
+        match group.operation {
+            ShapeGroupOperation::Min => "1024.0",
+            ShapeGroupOperation::Max => "-1024.0",
+        }
+    );
+    if material {
+        source += &format!("var material_{group_index} = Material(vec3(1.0));\n");
+    }
+    source += &generate_shapes_sdf(
+        group_index,
+        group.operation,
+        "plane",
+        &group.plane_index_range,
+        material,
+    );
+    source += &generate_shapes_sdf(
+        group_index,
+        group.operation,
         "sphere",
         &group.sphere_index_range,
+        material,
     );
-    let cubes = generate_shapes_sdf(dist.as_str(), operation, "cube", &group.cube_index_range);
-    let mut source = match group.operation {
-        ShapeGroupOperation::Min => format!("var {dist} = 1024.0;\n{planes}{spheres}{cubes}"),
-        ShapeGroupOperation::Max => format!("var {dist} = -1024.0;\n{planes}{spheres}{cubes}"),
-    };
+    source += &generate_shapes_sdf(
+        group_index,
+        group.operation,
+        "cube",
+        &group.cube_index_range,
+        material,
+    );
 
-    *index += 1;
-    for group in group.children.iter() {
-        let (group_source, group_dist) = generate_group_sdf(group, index);
-        source += &group_source;
-
-        if group.negative {
-            source += &format!("{dist} = {operation}({dist}, -{group_dist});\n");
-        } else {
-            source += &format!("{dist} = {operation}({dist}, {group_dist});\n");
-        }
+    for child in group.children.iter() {
+        let child_index = *index;
+        let child_source = generate_group_sdf(child, index, material);
+        source += &child_source;
+        source += &generate_operation(
+            group.operation,
+            group_index,
+            format!(
+                "{}dist_{child_index}",
+                if group.negative { "-" } else { "" }
+            ),
+            if material {
+                Some(format!("material_{child_index}"))
+            } else {
+                None
+            },
+        );
     }
 
-    (source, dist)
+    source
 }
 
 fn generate_shapes_sdf(
-    dist: &str,
-    operation: &str,
+    index: u8,
+    operation: ShapeGroupOperation,
     shape: &str,
     index_range: &Range<u8>,
+    material: bool,
 ) -> String {
-    let start_index = index_range.start;
-    let end_index = index_range.end;
-    match end_index - start_index {
+    match index_range.len() {
         0 => String::new(),
-        1 => format!("{dist} = {operation}({dist}, sdf_{shape}({start_index}u, pnt));\n"),
-        _ => format!(
-            "for (var i = {start_index}u; i < {end_index}u; i = i + 1u) {{
-{dist} = {operation}({dist}, sdf_{shape}(i, pnt));
-}}\n"
+        1 => generate_operation(
+            operation,
+            index,
+            format!("sdf_{shape}({}u, pnt)", index_range.start),
+            if material {
+                Some(format!("shapes.{shape}s[{}u].material", index_range.start))
+            } else {
+                None
+            },
         ),
+        _ => generate_for_loop(
+            index_range,
+            generate_operation(
+                operation,
+                index,
+                format!("sdf_{shape}(i, pnt)"),
+                if material {
+                    Some(format!("shapes.{shape}s[i].material"))
+                } else {
+                    None
+                },
+            ),
+        ),
+    }
+}
+
+fn generate_for_loop(range: &Range<u8>, inner: String) -> String {
+    format!(
+        "for (var i = {}u; i < {}u; i = i + 1u) {{\n{}}}\n",
+        range.start, range.end, inner
+    )
+}
+
+fn generate_operation(
+    operation: ShapeGroupOperation,
+    index: u8,
+    dist: String,
+    material: Option<String>,
+) -> String {
+    match material {
+        None => match operation {
+            ShapeGroupOperation::Min => format!("dist_{index} = min(dist_{index}, {dist});\n"),
+            ShapeGroupOperation::Max => format!("dist_{index} = max(dist_{index}, {dist});\n"),
+        },
+        Some(material) => match operation {
+            ShapeGroupOperation::Min => format!("if min_select(&dist_{index}, {dist}) {{ material_{index} = {material}; }}\n"),
+            ShapeGroupOperation::Max => format!("if max_select(&dist_{index}, {dist}) {{ material_{index} = {material}; }}\n"),
+        }
     }
 }

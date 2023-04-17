@@ -50,14 +50,17 @@ pub fn ui(
                 });
                 ui.separator();
                 Grid::new("draw_mode").num_columns(2).show(ui, |ui| {
-                    ui.label("Draw lighting:");
-                    ui.checkbox(&mut ray_marching.draw_lighting, "");
+                    ui.label("Materials:");
+                    ui.checkbox(&mut ray_marching.materials, "");
                     ui.end_row();
-                    ui.label("Draw ambient occlusion:");
-                    ui.checkbox(&mut ray_marching.draw_ambient_occlusion, "");
+                    ui.label("Lighting:");
+                    ui.checkbox(&mut ray_marching.lighting, "");
                     ui.end_row();
-                    ui.label("Draw iterations:");
-                    ui.checkbox(&mut ray_marching.draw_iterations, "");
+                    ui.label("Ambient occlusion:");
+                    ui.checkbox(&mut ray_marching.ambient_occlusion, "");
+                    ui.end_row();
+                    ui.label("Debug iterations:");
+                    ui.checkbox(&mut ray_marching.debug_iterations, "");
                     ui.end_row();
                 });
             });

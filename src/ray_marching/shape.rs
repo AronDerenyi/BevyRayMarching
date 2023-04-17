@@ -23,6 +23,7 @@ impl Plugin for ShapePlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
         app.add_plugin(ExtractComponentPlugin::<ExtractedShape>::default());
         app.add_plugin(ExtractComponentPlugin::<RootShape>::default());
+        app.add_plugin(ExtractComponentPlugin::<Material>::default());
         app.sub_app_mut(RenderApp)
             .init_resource::<ShapesUniformBuffer>()
             .init_resource::<ShapesBindGroupLayout>()
@@ -31,13 +32,13 @@ impl Plugin for ShapePlugin {
     }
 }
 
-#[derive(Component, Clone, Default)]
+#[derive(Component, Clone, Default, Debug)]
 pub struct Shape {
     pub shape_type: ShapeType,
     pub negative: bool,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum ShapeType {
     Plane,
     Sphere { radius: f32 },
@@ -92,6 +93,27 @@ impl ExtractComponent for RootShape {
     }
 }
 
+#[derive(Component, ShaderType, Clone, Debug)]
+pub struct Material {
+    pub color: Vec3,
+}
+
+impl Default for Material {
+    fn default() -> Self {
+        Self { color: Vec3::ONE }
+    }
+}
+
+impl ExtractComponent for Material {
+    type Query = &'static Self;
+    type Filter = (With<Shape>, With<GlobalTransform>);
+    type Out = Self;
+
+    fn extract_component(material: QueryItem<'_, Self::Query>) -> Option<Self> {
+        Some(material.clone())
+    }
+}
+
 pub const MAX_PLANES: u8 = 4;
 pub const MAX_SPHERES: u8 = 24;
 pub const MAX_CUBES: u8 = 24;
@@ -107,6 +129,7 @@ struct ShapesUniform {
 struct Plane {
     pub inv_transform: Mat4,
     pub scale: f32,
+    pub material: Material,
 }
 
 #[derive(ShaderType, Clone, Default)]
@@ -114,6 +137,7 @@ struct Sphere {
     pub radius: f32,
     pub inv_transform: Mat4,
     pub scale: f32,
+    pub material: Material,
 }
 
 #[derive(ShaderType, Clone, Default)]
@@ -121,6 +145,7 @@ struct Cube {
     pub size: Vec3,
     pub inv_transform: Mat4,
     pub scale: f32,
+    pub material: Material,
 }
 
 #[derive(Resource, Default)]
@@ -145,7 +170,7 @@ pub enum ShapeGroupOperation {
 fn prepare_shapes(
     mut commands: Commands,
     roots: Query<Entity, With<RootShape>>,
-    shapes: Query<&ExtractedShape>,
+    shapes: Query<(&ExtractedShape, Option<&Material>)>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     mut uniform_buffer: ResMut<ShapesUniformBuffer>,
@@ -158,6 +183,7 @@ fn prepare_shapes(
     let root_group = create_group(
         &shapes,
         &ExtractedShape::default(),
+        None,
         roots.iter(),
         &mut uniform,
         &mut plane_index,
@@ -171,8 +197,9 @@ fn prepare_shapes(
 }
 
 fn create_group<T>(
-    shapes: &Query<&ExtractedShape>,
+    shapes: &Query<(&ExtractedShape, Option<&Material>)>,
     shape: &ExtractedShape,
+    material: Option<&Material>,
     children: T,
     uniform: &mut ShapesUniform,
     plane_index: &mut u8,
@@ -199,15 +226,15 @@ where
 
         match shape_type {
             ShapeType::Plane => {
-                add_plane(uniform, plane_index, transform, false);
+                add_plane(uniform, plane_index, transform, material, false);
                 (ShapeGroupOperation::Min, *negative)
             }
             ShapeType::Sphere { radius } => {
-                add_sphere(uniform, sphere_index, *radius, transform, false);
+                add_sphere(uniform, sphere_index, *radius, transform, material, false);
                 (ShapeGroupOperation::Min, *negative)
             }
             ShapeType::Cube { size } => {
-                add_cube(uniform, cube_index, *size, transform, false);
+                add_cube(uniform, cube_index, *size, transform, material, false);
                 (ShapeGroupOperation::Min, *negative)
             }
             ShapeType::Union => (ShapeGroupOperation::Min, *negative),
@@ -216,8 +243,8 @@ where
     };
 
     // Adding the shapes that don't have children and saving the ones that do
-    let mut groups = Vec::<(&ExtractedShape, &Vec<Entity>)>::new();
-    for shape in shapes.iter_many(children) {
+    let mut groups = Vec::<(&ExtractedShape, Option<&Material>, &Vec<Entity>)>::new();
+    for (shape, material) in shapes.iter_many(children) {
         let ExtractedShape {
             children,
             shape_type,
@@ -227,18 +254,25 @@ where
         match children {
             None => match shape_type {
                 ShapeType::Plane => {
-                    add_plane(uniform, plane_index, transform, *negative);
+                    add_plane(uniform, plane_index, transform, material, *negative);
                 }
                 ShapeType::Sphere { radius } => {
-                    add_sphere(uniform, sphere_index, *radius, transform, *negative);
+                    add_sphere(
+                        uniform,
+                        sphere_index,
+                        *radius,
+                        transform,
+                        material,
+                        *negative,
+                    );
                 }
                 ShapeType::Cube { size } => {
-                    add_cube(uniform, cube_index, *size, transform, *negative);
+                    add_cube(uniform, cube_index, *size, transform, material, *negative);
                 }
                 _ => (),
             },
             Some(children) => {
-                groups.push((shape, children));
+                groups.push((shape, material, children));
             }
         }
     }
@@ -251,10 +285,11 @@ where
     // Converting the shapes with children into groups
     let children = groups
         .iter()
-        .map(|(shape, children)| {
+        .map(|(shape, material, children)| {
             create_group(
                 shapes,
                 shape,
+                *material,
                 *children,
                 uniform,
                 plane_index,
@@ -278,6 +313,7 @@ fn add_plane(
     uniform: &mut ShapesUniform,
     index: &mut u8,
     transform: &GlobalTransform,
+    material: Option<&Material>,
     negative: bool,
 ) {
     if *index == MAX_PLANES {
@@ -287,6 +323,7 @@ fn add_plane(
         uniform.planes[*index as usize] = Plane {
             inv_transform,
             scale,
+            material: material.cloned().unwrap_or_default(),
         };
         *index += 1;
     }
@@ -297,6 +334,7 @@ fn add_sphere(
     index: &mut u8,
     radius: f32,
     transform: &GlobalTransform,
+    material: Option<&Material>,
     negative: bool,
 ) {
     if *index == MAX_SPHERES {
@@ -307,6 +345,7 @@ fn add_sphere(
             radius,
             inv_transform,
             scale,
+            material: material.cloned().unwrap_or_default(),
         };
         *index += 1;
     }
@@ -317,6 +356,7 @@ fn add_cube(
     index: &mut u8,
     size: Vec3,
     transform: &GlobalTransform,
+    material: Option<&Material>,
     negative: bool,
 ) {
     if *index == MAX_CUBES {
@@ -327,6 +367,7 @@ fn add_cube(
             size,
             inv_transform,
             scale,
+            material: material.cloned().unwrap_or_default(),
         };
         *index += 1;
     }

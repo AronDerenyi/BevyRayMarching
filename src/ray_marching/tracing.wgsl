@@ -16,18 +16,25 @@ struct Shapes {
 struct Plane {
     inv_transform: mat4x4<f32>,
     scale: f32,
+    material: Material,
 };
 
 struct Sphere {
     radius: f32,
     inv_transform: mat4x4<f32>,
     scale: f32,
+    material: Material,
 };
 
 struct Cube {
     size: vec3<f32>,
     inv_transform: mat4x4<f32>,
     scale: f32,
+    material: Material,
+};
+
+struct Material {
+    color: vec3<f32>,
 };
 
 struct Stage {
@@ -98,13 +105,13 @@ fn main(@location(0) uv: vec2<f32>) ->
             )
         ));
 
-        #ifdef DRAW_ITERATIONS
+        #ifdef DEBUG_ITERATIONS
             var iterations = 0u;
         #endif
 
         var collided = false;
         while (distance < 1024.0) {
-            #ifdef DRAW_ITERATIONS
+            #ifdef DEBUG_ITERATIONS
                 iterations += 1u;
             #endif
 
@@ -119,18 +126,25 @@ fn main(@location(0) uv: vec2<f32>) ->
 
         if collided {
             let normal = normal(pos + dir * distance);
-            var color = vec3(1.0);
 
-            #ifdef DRAW_LIGHTING
+            #ifdef MATERIALS
+                let material = material(pos + dir * distance);
+            #else
+                let material = Material(vec3(1.0));
+            #endif
+
+            var color = material.color;
+
+            #ifdef LIGHTING
                 color *= (normal.z * 0.4 + 0.6);
             #endif
 
-            #ifdef DRAW_AMBIENT_OCCLUSION
+            #ifdef AMBIENT_OCCLUSION
                 let ambient_occlusion = ambient_occlusion(pos + dir * distance, normal);
                 color *= (0.6 + ambient_occlusion * 0.4);
             #endif
 
-            #ifdef DRAW_ITERATIONS
+            #ifdef DEBUG_ITERATIONS
                 let iterations = f32(iterations) / 32.0;
                 color *= vec3(min(1.0, iterations), clamp(2.0 - iterations, 0.0, 1.0), 0.0);
             #endif
@@ -166,23 +180,33 @@ fn normal(pnt: vec3<f32>) -> vec3<f32> {
     );
 }
 
-fn sdf_plane(id: u32, pnt: vec3<f32>) -> f32 {
-    let plane = &shapes.planes[id];
+fn sdf_plane(index: u32, pnt: vec3<f32>) -> f32 {
+    let plane = &shapes.planes[index];
     return pos_transform(pnt, (*plane).inv_transform).z * (*plane).scale;
 }
 
-fn sdf_sphere(id: u32, pnt: vec3<f32>) -> f32 {
-    let sphere = &shapes.spheres[id];
+fn sdf_sphere(index: u32, pnt: vec3<f32>) -> f32 {
+    let sphere = &shapes.spheres[index];
     return (length(pos_transform(pnt, (*sphere).inv_transform)) - (*sphere).radius) * (*sphere).scale;
 }
 
-fn sdf_cube(id: u32, pnt: vec3<f32>) -> f32 {
-    let cube = &shapes.cubes[id];
+fn sdf_cube(index: u32, pnt: vec3<f32>) -> f32 {
+    let cube = &shapes.cubes[index];
     var q = abs(pos_transform(pnt, (*cube).inv_transform)) - (*cube).size;
     return (length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0)) * (*cube).scale;
 }
 
 
+
+fn min_select(left: ptr<function, f32>, right: f32) -> bool {
+    *left = min(*left, right);
+    return *left == right;
+}
+
+fn max_select(left: ptr<function, f32>, right: f32) -> bool {
+    *left = max(*left, right);
+    return *left == right;
+}
 
 fn get_direction(uv: vec2<f32>) -> vec3<f32> {
     return normalize(
@@ -192,14 +216,14 @@ fn get_direction(uv: vec2<f32>) -> vec3<f32> {
     );
 }
 
-fn length_squared(v: vec3<f32>) -> f32 {
-    return dot(v, v);
-}
-
 fn pos_transform(pnt: vec3<f32>, transform: mat4x4<f32>) -> vec3<f32> {
     return (transform * vec4(pnt, 1.0)).xyz;
 }
 
 fn dir_transform(pnt: vec3<f32>, transform: mat4x4<f32>) -> vec3<f32> {
     return (transform * vec4(pnt, 0.0)).xyz;
+}
+
+fn length_squared(v: vec3<f32>) -> f32 {
+    return dot(v, v);
 }
