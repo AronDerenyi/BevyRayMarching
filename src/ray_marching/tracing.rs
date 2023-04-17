@@ -4,7 +4,7 @@ use super::{
     view::ViewBindGroupLayout,
     RayMarching,
 };
-use crate::ray_marching::shape::ShapeGroupOperation;
+use crate::ray_marching::shape::Operation::{self, Intersection, Union};
 use bevy::{
     core_pipeline::fullscreen_vertex_shader::fullscreen_shader_vertex_state,
     prelude::{
@@ -271,8 +271,8 @@ fn generate_group_sdf(group: &ShapeGroup, index: &mut u8, material: bool) -> Str
     let mut source = format!(
         "var dist_{group_index} = {};\n",
         match group.operation {
-            ShapeGroupOperation::Min => "1024.0",
-            ShapeGroupOperation::Max => "-1024.0",
+            Union => "1024.0",
+            Intersection => "-1024.0",
         }
     );
     if material {
@@ -324,7 +324,7 @@ fn generate_group_sdf(group: &ShapeGroup, index: &mut u8, material: bool) -> Str
 
 fn generate_shapes_sdf(
     index: u8,
-    operation: ShapeGroupOperation,
+    operation: Operation,
     shape: &str,
     index_range: &Range<u8>,
     material: bool,
@@ -365,19 +365,23 @@ fn generate_for_loop(range: &Range<u8>, inner: String) -> String {
 }
 
 fn generate_operation(
-    operation: ShapeGroupOperation,
+    operation: Operation,
     index: u8,
     dist: String,
     material: Option<String>,
 ) -> String {
     match material {
         None => match operation {
-            ShapeGroupOperation::Min => format!("dist_{index} = min(dist_{index}, {dist});\n"),
-            ShapeGroupOperation::Max => format!("dist_{index} = max(dist_{index}, {dist});\n"),
+            Union => format!("dist_{index} = min(dist_{index}, {dist});\n"),
+            Intersection => format!("dist_{index} = max(dist_{index}, {dist});\n"),
         },
         Some(material) => match operation {
-            ShapeGroupOperation::Min => format!("if min_select(&dist_{index}, {dist}) {{ material_{index} = {material}; }}\n"),
-            ShapeGroupOperation::Max => format!("if max_select(&dist_{index}, {dist}) {{ material_{index} = {material}; }}\n"),
-        }
+            Union => format!(
+                "if min_select(&dist_{index}, {dist}) {{ material_{index} = {material}; }}\n"
+            ),
+            Intersection => format!(
+                "if max_select(&dist_{index}, {dist}) {{ material_{index} = {material}; }}\n"
+            ),
+        },
     }
 }

@@ -5,7 +5,7 @@ mod tracing;
 mod upsampling;
 mod view;
 
-pub use self::shape::{Shape, ShapeType, Material};
+pub use self::shape::{Material, Operation, Primitive, Shape, ShapeType};
 use self::{
     node::RayMarchingNode, shape::ShapePlugin, stages::StagesPlugin, tracing::TracingPlugin,
     upsampling::UpsamplingPlugin, view::ViewPlugin,

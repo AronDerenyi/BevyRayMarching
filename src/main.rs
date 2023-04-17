@@ -6,18 +6,14 @@ use bevy::{diagnostic::LogDiagnosticsPlugin, input::mouse::MouseWheel};
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use ray_marching::RayMarching;
 use ray_marching::{
-    Material, RayMarchingPlugin, Shape,
-    ShapeType::{Cube, Intersection, Plane, Sphere},
+    Material,
+    Operation::{Intersection, Union},
+    Primitive::{Cube, Plane, Sphere},
+    RayMarchingPlugin, Shape,
+    ShapeType::{Compound, Primitive},
 };
 use std::f32::consts;
 use user_interface::UIPlugin;
-
-/*
-LogPlugin {
-filter: "wgpu_core".into(),
-level: Level::INFO,
-}
-*/
 
 #[derive(Component)]
 struct OrbitControls {
@@ -85,7 +81,7 @@ fn setup(mut commands: Commands) {
         .spawn((
             Name::new("Root"),
             Shape {
-                shape_type: Intersection,
+                shape_type: Compound(Intersection),
                 ..default()
             },
             Transform::default(),
@@ -95,11 +91,13 @@ fn setup(mut commands: Commands) {
             builder.spawn((
                 Name::new("Sphere"),
                 Shape {
-                    shape_type: Sphere { radius: 1.3 },
+                    shape_type: Primitive(
+                        Sphere { radius: 1.3 },
+                        Material {
+                            color: Vec3::new(1.0, 0.0, 0.0),
+                        },
+                    ),
                     ..default()
-                },
-                Material {
-                    color: Vec3::new(1.0, 0.0, 0.0),
                 },
                 Transform::default(),
                 GlobalTransform::default(),
@@ -107,13 +105,15 @@ fn setup(mut commands: Commands) {
             builder.spawn((
                 Name::new("ClipCube"),
                 Shape {
-                    shape_type: Cube {
-                        size: Vec3::new(1.0, 1.0, 1.0),
-                    },
+                    shape_type: Primitive(
+                        Cube {
+                            size: Vec3::new(1.0, 1.0, 1.0),
+                        },
+                        Material {
+                            color: Vec3::new(0.0, 1.0, 0.0),
+                        },
+                    ),
                     ..default()
-                },
-                Material {
-                    color: Vec3::new(0.0, 1.0, 0.0),
                 },
                 Transform::default(),
                 GlobalTransform::default(),
@@ -121,13 +121,15 @@ fn setup(mut commands: Commands) {
             builder.spawn((
                 Name::new("HoleCubeX"),
                 Shape {
-                    shape_type: Cube {
-                        size: Vec3::new(1.1, 0.4, 0.4),
-                    },
+                    shape_type: Primitive(
+                        Cube {
+                            size: Vec3::new(1.1, 0.4, 0.4),
+                        },
+                        Material {
+                            color: Vec3::new(1.0, 0.0, 1.0),
+                        },
+                    ),
                     negative: true,
-                },
-                Material {
-                    color: Vec3::new(1.0, 0.0, 1.0),
                 },
                 Transform::default(),
                 GlobalTransform::default(),
@@ -135,13 +137,15 @@ fn setup(mut commands: Commands) {
             builder.spawn((
                 Name::new("HoleCubeY"),
                 Shape {
-                    shape_type: Cube {
-                        size: Vec3::new(0.4, 1.1, 0.4),
-                    },
+                    shape_type: Primitive(
+                        Cube {
+                            size: Vec3::new(0.4, 1.1, 0.4),
+                        },
+                        Material {
+                            color: Vec3::new(0.0, 1.0, 1.0),
+                        },
+                    ),
                     negative: true,
-                },
-                Material {
-                    color: Vec3::new(0.0, 1.0, 1.0),
                 },
                 Transform::default(),
                 GlobalTransform::default(),
@@ -149,13 +153,15 @@ fn setup(mut commands: Commands) {
             builder.spawn((
                 Name::new("HoleCubeZ"),
                 Shape {
-                    shape_type: Cube {
-                        size: Vec3::new(0.4, 0.4, 1.1),
-                    },
+                    shape_type: Primitive(
+                        Cube {
+                            size: Vec3::new(0.4, 0.4, 1.1),
+                        },
+                        Material {
+                            color: Vec3::new(0.0, 0.0, 1.0),
+                        },
+                    ),
                     negative: true,
-                },
-                Material {
-                    color: Vec3::new(0.0, 0.0, 1.0),
                 },
                 Transform::default(),
                 GlobalTransform::default(),

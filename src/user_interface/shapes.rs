@@ -1,5 +1,10 @@
 use super::SelectedShape;
-use crate::ray_marching::{Shape, ShapeType};
+use crate::ray_marching::{
+    Operation::{Intersection, Union},
+    Primitive::{Cube, Plane, Sphere},
+    Shape,
+    ShapeType::{self, Compound, Primitive},
+};
 use bevy::prelude::{
     Children, Commands, Entity, GlobalTransform, Name, Parent, Query, ResMut, Transform, With,
     Without,
@@ -23,12 +28,14 @@ pub fn ui(
                 shape_ui(ui, &mut selected_shape, entity, &shapes);
             }
             if ui.button("Add").clicked() {
-                let entity = commands.spawn((
-                    Name::new("Shape"),
-                    Shape::default(),
-                    Transform::default(),
-                    GlobalTransform::default(),
-                )).id();
+                let entity = commands
+                    .spawn((
+                        Name::new("Shape"),
+                        Shape::default(),
+                        Transform::default(),
+                        GlobalTransform::default(),
+                    ))
+                    .id();
                 selected_shape.0 = Some(entity);
             }
         });
@@ -70,11 +77,11 @@ fn shape_label_ui(
         &mut selected_shape.0,
         Some(entity),
         match shape.shape_type {
-            ShapeType::Plane => format!("{name} (Plane)"),
-            ShapeType::Sphere { .. } => format!("{name} (Sphere)"),
-            ShapeType::Cube { .. } => format!("{name} (Cube)"),
-            ShapeType::Union => format!("{name} (Union)"),
-            ShapeType::Intersection => format!("{name} (Intersection)"),
+            Primitive(Plane, ..) => format!("{name} (Plane)"),
+            Primitive(Sphere { .. }, ..) => format!("{name} (Sphere)"),
+            Primitive(Cube { .. }, ..) => format!("{name} (Cube)"),
+            Compound(Union) => format!("{name} (Union)"),
+            Compound(Intersection) => format!("{name} (Intersection)"),
         },
     );
 }

@@ -1,5 +1,11 @@
 use super::SelectedShape;
-use crate::ray_marching::{Material, Shape, ShapeType};
+use crate::ray_marching::{
+    Material,
+    Operation::{Intersection, Union},
+    Primitive::{Cube, Plane, Sphere},
+    Shape,
+    ShapeType::{self, Compound, Primitive},
+};
 use bevy::prelude::{
     BuildChildren, Commands, DespawnRecursiveExt, Entity, EulerRot, Mut, Name, Parent, Quat, Query,
     Res, Transform, Vec3,
@@ -19,7 +25,6 @@ pub fn ui(
         Option<&Parent>,
         &mut Transform,
         &mut Shape,
-        Option<&mut Material>,
     )>,
 ) {
     let Some(selected_entity) = selected_shape.0 else {
@@ -37,7 +42,7 @@ pub fn ui(
         })
         .collect::<Vec<(Entity, String)>>();
 
-    let Ok((entity, name, parent, transform, shape, material)) = shapes.get_mut(selected_entity) else {
+    let Ok((entity, name, parent, transform, shape)) = shapes.get_mut(selected_entity) else {
         return
     };
 
@@ -49,14 +54,6 @@ pub fn ui(
             transform_ui(ui, transform);
             ui.separator();
             shape_ui(ui, shape);
-            ui.separator();
-            if let Some(material) = material {
-                material_ui(ui, material);
-            } else {
-                if ui.button("Add material").clicked() {
-                    commands.entity(entity).insert(Material::default());
-                }
-            }
             ui.separator();
             if ui.button("Delete").clicked() {
                 commands.entity(entity).despawn_recursive();
@@ -133,18 +130,23 @@ fn shape_ui(ui: &mut Ui, mut shape: Mut<Shape>) {
         shape_type_ui(ui, &mut shape.shape_type);
         ui.end_row();
 
-        match shape.shape_type {
-            ShapeType::Sphere { ref mut radius } => {
-                ui.label("Radius:");
-                scalar_ui(ui, radius);
-                ui.end_row();
+        if let Primitive(ref mut primitive, ref mut material) = &mut shape.shape_type {
+            match primitive {
+                Sphere { ref mut radius } => {
+                    ui.label("Radius:");
+                    scalar_ui(ui, radius);
+                    ui.end_row();
+                }
+                Cube { ref mut size } => {
+                    ui.label("Size:");
+                    vec_ui(ui, size);
+                    ui.end_row();
+                }
+                _ => {}
             }
-            ShapeType::Cube { ref mut size } => {
-                ui.label("Size:");
-                vec_ui(ui, size);
-                ui.end_row();
-            }
-            _ => {}
+            ui.label("Color:");
+            color_ui(ui, &mut material.color);
+            ui.end_row();
         }
 
         ui.label("Negative:");
@@ -154,31 +156,38 @@ fn shape_ui(ui: &mut Ui, mut shape: Mut<Shape>) {
 }
 
 fn shape_type_ui(ui: &mut Ui, shape_type: &mut ShapeType) {
-    let (name, radius, size) = match shape_type {
-        ShapeType::Plane => ("Plane", 1.0, Vec3::ONE),
-        ShapeType::Sphere { radius } => ("Sphere", *radius, Vec3::splat(*radius)),
-        ShapeType::Cube { size } => ("Cube", (size.x + size.y + size.z) / 3.0, *size),
-        ShapeType::Union => ("Union", 1.0, Vec3::ONE),
-        ShapeType::Intersection => ("Intersection", 1.0, Vec3::ONE),
+    let (name, radius, size, material) = match shape_type {
+        Primitive(Plane, material) => ("Plane", 1.0, Vec3::ONE, material.clone()),
+        Primitive(Sphere { radius }, material) => {
+            ("Sphere", *radius, Vec3::splat(*radius), material.clone())
+        }
+        Primitive(Cube { size }, material) => (
+            "Cube",
+            (size.x + size.y + size.z) / 3.0,
+            *size,
+            material.clone(),
+        ),
+        Compound(Union) => ("Union", 1.0, Vec3::ONE, Material::default()),
+        Compound(Intersection) => ("Intersection", 1.0, Vec3::ONE, Material::default()),
     };
 
     ComboBox::new("shape_type", "")
         .selected_text(name)
         .show_ui(ui, |ui| {
-            ui.selectable_value(shape_type, ShapeType::Plane, "Plane");
-            ui.selectable_value(shape_type, ShapeType::Sphere { radius }, "Sphere");
-            ui.selectable_value(shape_type, ShapeType::Cube { size }, "Cube");
-            ui.selectable_value(shape_type, ShapeType::Union, "Union");
-            ui.selectable_value(shape_type, ShapeType::Intersection, "Intersection");
+            ui.selectable_value(shape_type, Primitive(Plane, material.clone()), "Plane");
+            ui.selectable_value(
+                shape_type,
+                Primitive(Sphere { radius }, material.clone()),
+                "Sphere",
+            );
+            ui.selectable_value(
+                shape_type,
+                Primitive(Cube { size }, material.clone()),
+                "Cube",
+            );
+            ui.selectable_value(shape_type, Compound(Union), "Union");
+            ui.selectable_value(shape_type, Compound(Intersection), "Intersection");
         });
-}
-
-fn material_ui(ui: &mut Ui, mut material: Mut<Material>) {
-    Grid::new("material").num_columns(2).show(ui, |ui| {
-        ui.label("Color:");
-        color_ui(ui, &mut material.color);
-        ui.end_row();
-    });
 }
 
 fn scalar_ui(ui: &mut Ui, scalar: &mut f32) {
