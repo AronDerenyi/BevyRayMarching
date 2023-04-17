@@ -1,14 +1,14 @@
 mod ray_marching;
 mod user_interface;
-use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
+use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::prelude::*;
 use bevy::{diagnostic::LogDiagnosticsPlugin, input::mouse::MouseWheel};
-use bevy_egui::{egui, EguiContexts, EguiPlugin};
+use bevy_egui::EguiPlugin;
 use ray_marching::RayMarching;
 use ray_marching::{
     Material,
-    Operation::{Intersection, Union},
-    Primitive::{Cube, Plane, Sphere},
+    Operation::Intersection,
+    Primitive::{Cube, Sphere},
     RayMarchingPlugin, Shape,
     ShapeType::{Compound, Primitive},
 };
@@ -26,16 +26,6 @@ struct OrbitControls {
 struct Bouncing;
 
 fn main() {
-    //    WindowPlugin {
-    //        window: WindowDescriptor {
-    //            title: "Ray marching".to_string(),
-    //            present_mode: PresentMode::Immediate,
-    //            width: 960.0,
-    //            height: 640.0,
-    //            ..default()
-    //        },
-    //        ..default()
-    //    }
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(LogDiagnosticsPlugin::default())
@@ -52,18 +42,7 @@ fn main() {
 
 fn setup(mut commands: Commands) {
     commands.spawn((
-        Camera3dBundle {
-            projection: Projection::Perspective(PerspectiveProjection { ..default() }),
-            camera: Camera {
-                //                viewport: Some(Viewport {
-                //                    physical_position: UVec2::new(0, 0),
-                //                    physical_size: UVec2::new(300, 300),
-                //                    ..default()
-                //                }),
-                ..default()
-            },
-            ..default()
-        },
+        Camera3dBundle::default(),
         RayMarching {
             lighting: true,
             ambient_occlusion: true,

@@ -3,14 +3,14 @@ use crate::ray_marching::{
     Operation::{Intersection, Union},
     Primitive::{Cube, Plane, Sphere},
     Shape,
-    ShapeType::{self, Compound, Primitive},
+    ShapeType::{Compound, Primitive},
 };
 use bevy::prelude::{
     Children, Commands, Entity, GlobalTransform, Name, Parent, Query, ResMut, Transform, With,
     Without,
 };
 use bevy_egui::{
-    egui::{collapsing_header::CollapsingState, Id, Label, Sense, Ui, Window},
+    egui::{collapsing_header::CollapsingState, Id, Ui, Window},
     EguiContexts,
 };
 
