@@ -128,6 +128,7 @@ impl SpecializedRenderPipeline for TracingPipeline {
             ShaderDefVal::Int("MAX_PLANES".into(), MAX_PLANES as i32),
             ShaderDefVal::Int("MAX_SPHERES".into(), MAX_SPHERES as i32),
             ShaderDefVal::Int("MAX_CUBES".into(), MAX_CUBES as i32),
+            ShaderDefVal::Int("FAR".into(), 64),
         ];
 
         let (label, format) = match key.variant {
@@ -268,7 +269,7 @@ fn queue_pipelines(
 fn generate_sdf(group: &ShapeGroup) -> String {
     let mut group_index = 0u8;
     format!(
-        "fn sdf(pnt: vec3<f32>) -> f32 {{\n{}return dist_0;\n}}",
+        "fn sdf_generated(pnt: vec3<f32>) -> f32 {{\n{}return dist_0;\n}}",
         generate_group_sdf(group, &mut group_index, false)
     )
 }
@@ -276,7 +277,7 @@ fn generate_sdf(group: &ShapeGroup) -> String {
 fn generate_material(group: &ShapeGroup) -> String {
     let mut group_index = 0u8;
     format!(
-        "fn sdf_material(pnt: vec3<f32>) -> SDFMaterialResult {{\n{}return SDFMaterialResult(dist_0, material_0);\n}}",
+        "fn sdf_material_generated(pnt: vec3<f32>) -> SDFMaterialResult {{\n{}return SDFMaterialResult(dist_0, material_0);\n}}",
         generate_group_sdf(group, &mut group_index, true)
     )
 }
@@ -288,8 +289,8 @@ fn generate_group_sdf(group: &ShapeGroup, index: &mut u8, material: bool) -> Str
     let mut source = format!(
         "var dist_{group_index} = {};\n",
         match group.operation {
-            Union => "1024.0",
-            Intersection => "-1024.0",
+            Union => "#{FAR}f",
+            Intersection => "-#{FAR}f",
         }
     );
     if material {
@@ -326,7 +327,7 @@ fn generate_group_sdf(group: &ShapeGroup, index: &mut u8, material: bool) -> Str
             group_index,
             format!(
                 "{}dist_{child_index}",
-                if group.negative { "-" } else { "" }
+                if child.negative { "-" } else { "" }
             ),
             if material {
                 Some(format!("material_{child_index}"))

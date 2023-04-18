@@ -116,7 +116,7 @@ fn main(@location(0) uv: vec2<f32>) ->
 
         for (var i = 0u; i < #{ITERATIONS}u; i = i + 1u) {
             let distance = sdf(pos + dir * progress);
-            progress = clamp((progress + distance) / (1.0 + texel_radius), progress, 1024.0);
+            progress = clamp((progress + distance) / (1.0 + texel_radius), progress, #{FAR}f);
         }
         return progress;
     #else
@@ -133,7 +133,7 @@ fn main(@location(0) uv: vec2<f32>) ->
 
         var collided = false;
         var distance: f32;
-        while (progress < 1024.0) {
+        while (progress < #{FAR}f) {
             #ifdef DEBUG_ITERATIONS
                 iterations += 1u;
             #endif
@@ -168,8 +168,7 @@ fn main(@location(0) uv: vec2<f32>) ->
             #ifdef LIGHTING
                 var indirect_light = diffuse_color * environment.sky * 0.5;
                 #ifdef AMBIENT_OCCLUSION
-                    let ambient_occlusion = ambient_occlusion(pnt, normal);
-                    indirect_light *= (0.6 + ambient_occlusion * 0.4);
+                    indirect_light *= ambient_occlusion(pnt, normal);
                 #endif
 
                 let NoL = saturate(dot(normal, environment.sun_direction));
@@ -197,8 +196,13 @@ fn main(@location(0) uv: vec2<f32>) ->
         }
 
         #ifdef DEBUG_ITERATIONS
-            let iterations = f32(iterations) / 32.0;
-            color *= vec3(saturate(iterations), saturate(2.0 - iterations), 0.0);
+            let max_iterations = 256u;
+            let mapped_iterations = log2(f32(iterations)) / log2(f32(max_iterations)) * 2.0;
+            color = vec3(
+                saturate(mapped_iterations),
+                saturate(2.0 - mapped_iterations),
+                select(0.0, 1.0, iterations > max_iterations)
+            );
         #endif
 
         #ifdef DEBUG_SDF
@@ -240,13 +244,13 @@ fn ambient_occlusion(pnt: vec3<f32>, normal: vec3<f32>) -> f32 {
     sum += max(0.0, sdf(pnt + normal * 0.2)) * 0.5;
     sum += max(0.0, sdf(pnt + normal * 0.3)) * 0.25;
     sum += max(0.0, sdf(pnt + normal * 0.4)) * 0.125;
-    return sum * 3.07692307692;
+    return 0.6 + sum * 3.07692307692 * 0.4;
 }
 
 fn shadow(pnt: vec3<f32>, incident_light: vec3<f32>, NoL: f32, rad: f32, penumbra: f32) -> f32 {
     var progress = (rad + penumbra) / NoL;
-    var min_distance = 1024.0;
-    while (min_distance >= rad && progress < 1024.0) {
+    var min_distance = #{FAR}f;
+    while (min_distance >= rad && progress < #{FAR}f) {
         #ifdef DEBUG_ITERATIONS
             iterations += 1u;
         #endif
@@ -258,6 +262,14 @@ fn shadow(pnt: vec3<f32>, incident_light: vec3<f32>, NoL: f32, rad: f32, penumbr
 }
 
 
+
+fn sdf(pnt: vec3<f32>) -> f32 {
+    return sdf_generated(pnt);
+}
+
+fn sdf_material(pnt: vec3<f32>) -> SDFMaterialResult {
+    return sdf_material_generated(pnt);
+}
 
 fn sdf_plane(index: u32, pnt: vec3<f32>) -> f32 {
     let plane = &shapes.planes[index];

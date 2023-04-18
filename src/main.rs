@@ -64,6 +64,35 @@ fn setup(mut commands: Commands) {
     commands
         .spawn((
             Name::new("Root"),
+            Shape::default(),
+            Transform::default(),
+            GlobalTransform::default(),
+        ))
+        .with_children(|builder| {
+            for y in -2..=2 {
+                for x in -2..=2 {
+                    builder.spawn((
+                        Name::new(format!("Sphere_{x}_{y}")),
+                        Shape {
+                            shape_type: Primitive(
+                                Sphere { radius: 0.4 },
+                                Material {
+                                    color: Vec3::new(1.0, 1.0, 1.0),
+                                },
+                            ),
+                            ..default()
+                        },
+                        Transform::from_xyz(x as f32, y as f32, 0.0),
+                        GlobalTransform::default(),
+                    ));
+                }
+            }
+        });
+    return;
+
+    commands
+        .spawn((
+            Name::new("Root"),
             Shape {
                 shape_type: Compound(Intersection),
                 ..default()
@@ -78,7 +107,7 @@ fn setup(mut commands: Commands) {
                     shape_type: Primitive(
                         Sphere { radius: 1.3 },
                         Material {
-                            color: Vec3::new(1.0, 0.0, 0.0),
+                            color: Vec3::new(0.1, 0.1, 0.1),
                         },
                     ),
                     ..default()
@@ -94,7 +123,7 @@ fn setup(mut commands: Commands) {
                             size: Vec3::new(1.0, 1.0, 1.0),
                         },
                         Material {
-                            color: Vec3::new(0.0, 1.0, 0.0),
+                            color: Vec3::new(1.0, 1.0, 1.0),
                         },
                     ),
                     ..default()
@@ -107,10 +136,10 @@ fn setup(mut commands: Commands) {
                 Shape {
                     shape_type: Primitive(
                         Cube {
-                            size: Vec3::new(1.1, 0.4, 0.4),
+                            size: Vec3::new(2.0, 0.4, 0.4),
                         },
                         Material {
-                            color: Vec3::new(1.0, 0.0, 1.0),
+                            color: Vec3::new(1.0, 0.2, 0.8),
                         },
                     ),
                     negative: true,
@@ -123,10 +152,10 @@ fn setup(mut commands: Commands) {
                 Shape {
                     shape_type: Primitive(
                         Cube {
-                            size: Vec3::new(0.4, 1.1, 0.4),
+                            size: Vec3::new(0.4, 2.0, 0.4),
                         },
                         Material {
-                            color: Vec3::new(0.0, 1.0, 1.0),
+                            color: Vec3::new(1.0, 0.2, 0.8),
                         },
                     ),
                     negative: true,
@@ -139,10 +168,10 @@ fn setup(mut commands: Commands) {
                 Shape {
                     shape_type: Primitive(
                         Cube {
-                            size: Vec3::new(0.4, 0.4, 1.1),
+                            size: Vec3::new(0.4, 0.4, 2.0),
                         },
                         Material {
-                            color: Vec3::new(0.0, 0.0, 1.0),
+                            color: Vec3::new(1.0, 0.2, 0.8),
                         },
                     ),
                     negative: true,
