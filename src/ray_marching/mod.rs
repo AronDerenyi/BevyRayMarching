@@ -66,6 +66,7 @@ pub struct RayMarching {
     pub lighting: bool,
     pub ambient_occlusion: bool,
     pub debug_iterations: bool,
+    pub debug_sdf: bool,
 }
 
 impl Default for RayMarching {
@@ -79,6 +80,7 @@ impl Default for RayMarching {
             lighting: true,
             ambient_occlusion: true,
             debug_iterations: false,
+            debug_sdf: false,
         }
     }
 }

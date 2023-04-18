@@ -124,6 +124,15 @@ fn main(@location(0) uv: vec2<f32>) ->
             }
         }
 
+        #ifdef DEBUG_SDF
+            let sdf_plane_distance = pos.z / -dir.z;
+            let sdf_plane_collided = sdf_plane_distance >= 0.0 && sdf_plane_distance < distance;
+            if sdf_plane_collided {
+                collided = false;
+                distance = sdf_plane_distance;
+            }
+        #endif
+
         if collided {
             let normal = normal(pos + dir * distance);
 
@@ -151,6 +160,18 @@ fn main(@location(0) uv: vec2<f32>) ->
 
             return vec4(color, 1.0);
         } else {
+            #ifdef DEBUG_SDF
+                if sdf_plane_collided {
+                    #ifdef MATERIALS
+                        let color = material(pos + dir * distance).color;
+                    #else
+                        let color = vec3(1.0);
+                    #endif
+                    let sdf = (sdf(pos + dir * distance) * 2.0) % 1.0;
+                    return vec4(color * sdf, 1.0);
+                }
+            #endif
+
             return vec4(vec3(0.0), 1.0);
         }
     #endif

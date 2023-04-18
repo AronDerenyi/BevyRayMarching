@@ -62,6 +62,9 @@ pub fn ui(
                     ui.label("Debug iterations:");
                     ui.checkbox(&mut ray_marching.debug_iterations, "");
                     ui.end_row();
+                    ui.label("Debug sdf:");
+                    ui.checkbox(&mut ray_marching.debug_sdf, "");
+                    ui.end_row();
                 });
             });
     }

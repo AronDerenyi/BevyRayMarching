@@ -110,6 +110,7 @@ enum TracingPipelineVariant {
         lighting: bool,
         ambient_occlusion: bool,
         debug_iterations: bool,
+        debug_sdf: bool,
     },
 }
 
@@ -141,6 +142,7 @@ impl SpecializedRenderPipeline for TracingPipeline {
                 lighting,
                 ambient_occlusion,
                 debug_iterations,
+                debug_sdf,
             } => {
                 layout.push(self.last_stage_layout.clone());
                 shader_defs.push("LAST_STAGE".into());
@@ -155,6 +157,9 @@ impl SpecializedRenderPipeline for TracingPipeline {
                 }
                 if debug_iterations {
                     shader_defs.push("DEBUG_ITERATIONS".into());
+                }
+                if debug_sdf {
+                    shader_defs.push("DEBUG_SDF".into());
                 }
                 ("last_tracing_pipeline", TextureFormat::Rgba8Unorm)
             }
@@ -236,6 +241,7 @@ fn queue_pipelines(
                                     lighting: ray_marching.lighting,
                                     ambient_occlusion: ray_marching.ambient_occlusion,
                                     debug_iterations: ray_marching.debug_iterations,
+                                    debug_sdf: ray_marching.debug_sdf,
                                 },
                             },
                         ),
