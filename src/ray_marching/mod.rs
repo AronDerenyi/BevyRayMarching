@@ -1,3 +1,4 @@
+mod environment;
 mod node;
 mod shape;
 mod stages;
@@ -5,10 +6,13 @@ mod tracing;
 mod upsampling;
 mod view;
 
-pub use self::shape::{Material, Operation, Primitive, Shape, ShapeType};
+pub use self::{
+    environment::Environment,
+    shape::{Material, Operation, Primitive, Shape, ShapeType},
+};
 use self::{
-    node::RayMarchingNode, shape::ShapePlugin, stages::StagesPlugin, tracing::TracingPlugin,
-    upsampling::UpsamplingPlugin, view::ViewPlugin,
+    environment::EnvironmentPlugin, node::RayMarchingNode, shape::ShapePlugin,
+    stages::StagesPlugin, tracing::TracingPlugin, upsampling::UpsamplingPlugin, view::ViewPlugin,
 };
 use bevy::{
     core_pipeline::core_3d,
@@ -29,6 +33,7 @@ impl Plugin for RayMarchingPlugin {
         app.add_plugin(ExtractComponentPlugin::<RayMarching>::default())
             .add_plugin(ViewPlugin)
             .add_plugin(ShapePlugin)
+            .add_plugin(EnvironmentPlugin)
             .add_plugin(StagesPlugin)
             .add_plugin(TracingPlugin)
             .add_plugin(UpsamplingPlugin);
@@ -65,6 +70,8 @@ pub struct RayMarching {
     pub materials: bool,
     pub lighting: bool,
     pub ambient_occlusion: bool,
+    pub shadow: bool,
+
     pub debug_iterations: bool,
     pub debug_sdf: bool,
 }
@@ -79,6 +86,7 @@ impl Default for RayMarching {
             materials: true,
             lighting: true,
             ambient_occlusion: true,
+            shadow: true,
             debug_iterations: false,
             debug_sdf: false,
         }

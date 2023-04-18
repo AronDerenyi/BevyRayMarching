@@ -6,7 +6,7 @@ use bevy::{diagnostic::LogDiagnosticsPlugin, input::mouse::MouseWheel};
 use bevy_egui::EguiPlugin;
 use ray_marching::RayMarching;
 use ray_marching::{
-    Material,
+    Environment, Material,
     Operation::Intersection,
     Primitive::{Cube, Sphere},
     RayMarchingPlugin, Shape,
@@ -48,6 +48,11 @@ fn setup(mut commands: Commands) {
             ambient_occlusion: true,
             debug_iterations: false,
             ..default()
+        },
+        Environment {
+            sky: Vec3::new(0.5, 0.8, 1.0),
+            sun_direction: Vec3::new(0.5, 0.8, 1.0).normalize(),
+            sun_light: Vec3::new(1.0, 0.8, 0.6),
         },
         OrbitControls {
             pivot: Vec3::ZERO,

@@ -1,4 +1,5 @@
 use super::{
+    environment::EnvironmentBindGroupLayout,
     shape::{ShapeGroup, ShapesBindGroupLayout, MAX_CUBES, MAX_PLANES, MAX_SPHERES},
     stages::StageBindGroupLayouts,
     view::ViewBindGroupLayout,
@@ -71,6 +72,7 @@ fn extract_shader(
 struct TracingPipeline {
     view_layout: BindGroupLayout,
     shapes_layout: BindGroupLayout,
+    environment_layout: BindGroupLayout,
     first_stage_layout: BindGroupLayout,
     mid_stage_layout: BindGroupLayout,
     last_stage_layout: BindGroupLayout,
@@ -80,10 +82,12 @@ impl FromWorld for TracingPipeline {
     fn from_world(world: &mut bevy::prelude::World) -> Self {
         let view_bind_group_layout = world.resource::<ViewBindGroupLayout>();
         let shapes_bind_group_layout = world.resource::<ShapesBindGroupLayout>();
+        let environment_bind_group_layout = world.resource::<EnvironmentBindGroupLayout>();
         let stage_bind_group_layouts = world.resource::<StageBindGroupLayouts>();
         Self {
             view_layout: (*view_bind_group_layout).clone(),
             shapes_layout: (*shapes_bind_group_layout).clone(),
+            environment_layout: (*environment_bind_group_layout).clone(),
             first_stage_layout: stage_bind_group_layouts.first.clone(),
             mid_stage_layout: stage_bind_group_layouts.mid.clone(),
             last_stage_layout: stage_bind_group_layouts.last.clone(),
@@ -109,6 +113,7 @@ enum TracingPipelineVariant {
         materials: bool,
         lighting: bool,
         ambient_occlusion: bool,
+        shadow: bool,
         debug_iterations: bool,
         debug_sdf: bool,
     },
@@ -141,9 +146,11 @@ impl SpecializedRenderPipeline for TracingPipeline {
                 materials,
                 lighting,
                 ambient_occlusion,
+                shadow,
                 debug_iterations,
                 debug_sdf,
             } => {
+                layout.push(self.environment_layout.clone());
                 layout.push(self.last_stage_layout.clone());
                 shader_defs.push("LAST_STAGE".into());
                 if materials {
@@ -154,6 +161,9 @@ impl SpecializedRenderPipeline for TracingPipeline {
                 }
                 if ambient_occlusion {
                     shader_defs.push("AMBIENT_OCCLUSION".into());
+                }
+                if shadow {
+                    shader_defs.push("SHADOW".into());
                 }
                 if debug_iterations {
                     shader_defs.push("DEBUG_ITERATIONS".into());
@@ -240,6 +250,7 @@ fn queue_pipelines(
                                     materials: ray_marching.materials,
                                     lighting: ray_marching.lighting,
                                     ambient_occlusion: ray_marching.ambient_occlusion,
+                                    shadow: ray_marching.shadow,
                                     debug_iterations: ray_marching.debug_iterations,
                                     debug_sdf: ray_marching.debug_sdf,
                                 },
@@ -265,7 +276,7 @@ fn generate_sdf(group: &ShapeGroup) -> String {
 fn generate_material(group: &ShapeGroup) -> String {
     let mut group_index = 0u8;
     format!(
-        "fn material(pnt: vec3<f32>) -> Material {{\n{}return material_0;\n}}",
+        "fn sdf_material(pnt: vec3<f32>) -> SDFMaterialResult {{\n{}return SDFMaterialResult(dist_0, material_0);\n}}",
         generate_group_sdf(group, &mut group_index, true)
     )
 }

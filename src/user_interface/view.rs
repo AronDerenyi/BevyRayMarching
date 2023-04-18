@@ -59,6 +59,9 @@ pub fn ui(
                     ui.label("Ambient occlusion:");
                     ui.checkbox(&mut ray_marching.ambient_occlusion, "");
                     ui.end_row();
+                    ui.label("Shadow:");
+                    ui.checkbox(&mut ray_marching.shadow, "");
+                    ui.end_row();
                     ui.label("Debug iterations:");
                     ui.checkbox(&mut ray_marching.debug_iterations, "");
                     ui.end_row();

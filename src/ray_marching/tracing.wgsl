@@ -7,6 +7,12 @@ struct View {
     forward: vec3<f32>,
 };
 
+struct Environment {
+    sky: vec3<f32>,
+    sun_direction: vec3<f32>,
+    sun_light: vec3<f32>,
+};
+
 struct Shapes {
     planes: array<Plane, #{MAX_PLANES}>,
     spheres: array<Sphere, #{MAX_SPHERES}>,
@@ -50,12 +56,32 @@ var<uniform> shapes: Shapes;
     @group(2) @binding(0)
     var<uniform> stage: Stage;
 #else
-    @group(2) @binding(0)
-    var<uniform> stage: Stage;
-    @group(2) @binding(1)
-    var input_texture: texture_2d<f32>;
-    @group(2) @binding(2)
-    var input_sampler: sampler;
+    #ifndef LAST_STAGE
+        @group(2) @binding(0)
+        var<uniform> stage: Stage;
+        @group(2) @binding(1)
+        var input_texture: texture_2d<f32>;
+        @group(2) @binding(2)
+        var input_sampler: sampler;
+    #else
+        @group(2) @binding(0)
+        var<uniform> environment: Environment;
+        @group(3) @binding(0)
+        var<uniform> stage: Stage;
+        @group(3) @binding(1)
+        var input_texture: texture_2d<f32>;
+        @group(3) @binding(2)
+        var input_sampler: sampler;
+    #endif
+#endif
+
+struct SDFMaterialResult {
+    distance: f32,
+    material: Material,
+}
+
+#ifdef DEBUG_ITERATIONS
+    var<private> iterations: u32 = 0u;
 #endif
 
 @fragment
@@ -71,13 +97,13 @@ fn main(@location(0) uv: vec2<f32>) ->
     let dir = get_direction(screen_uv);
 
     #ifdef FIRST_STAGE
-        var distance = 0.0;
+        var progress = 0.0;
     #else
-        var distance = textureSample(input_texture, input_sampler, uv).r;
+        var progress = textureSample(input_texture, input_sampler, uv).r;
     #endif
 
     #ifndef LAST_STAGE
-        let rad = sqrt(max(
+        let texel_radius = sqrt(max(
             max(
                 length_squared(dir - get_direction(screen_uv + vec2(-stage.texel_size.x, -stage.texel_size.y))),
                 length_squared(dir - get_direction(screen_uv + vec2(stage.texel_size.x, -stage.texel_size.y)))
@@ -89,12 +115,12 @@ fn main(@location(0) uv: vec2<f32>) ->
         ));
 
         for (var i = 0u; i < #{ITERATIONS}u; i = i + 1u) {
-            let step = sdf(pos + dir * distance);
-            distance = clamp((distance + step) / (1.0 + rad), distance, 1024.0);
+            let distance = sdf(pos + dir * progress);
+            progress = clamp((progress + distance) / (1.0 + texel_radius), progress, 1024.0);
         }
-        return distance;
+        return progress;
     #else
-        let rad = sqrt(min(
+        let texel_radius = sqrt(min(
             min(
                 length_squared(dir - get_direction(screen_uv + vec2(-stage.texel_size.x, 0.0))),
                 length_squared(dir - get_direction(screen_uv + vec2(stage.texel_size.x, 0.0)))
@@ -105,19 +131,16 @@ fn main(@location(0) uv: vec2<f32>) ->
             )
         ));
 
-        #ifdef DEBUG_ITERATIONS
-            var iterations = 0u;
-        #endif
-
         var collided = false;
-        while (distance < 1024.0) {
+        var distance: f32;
+        while (progress < 1024.0) {
             #ifdef DEBUG_ITERATIONS
                 iterations += 1u;
             #endif
 
-            let step = sdf(pos + dir * distance);
-            if step >= distance * rad {
-                distance = distance + step;
+            distance = sdf(pos + dir * progress);
+            if distance >= progress * texel_radius {
+                progress = progress + distance;
             } else {
                 collided = true;
                 break;
@@ -125,56 +148,85 @@ fn main(@location(0) uv: vec2<f32>) ->
         }
 
         #ifdef DEBUG_SDF
-            let sdf_plane_distance = pos.z / -dir.z;
-            let sdf_plane_collided = sdf_plane_distance >= 0.0 && sdf_plane_distance < distance;
+            let sdf_plane_progress = pos.z / -dir.z;
+            let sdf_plane_collided = sdf_plane_progress >= 0.0 && sdf_plane_progress < progress;
+        #endif
+
+        var color: vec3<f32>;
+        if collided {
+            var pnt = pos + dir * progress;
+            let normal = normal(pnt);
+            pnt += normal * -distance;
+
+            #ifdef MATERIALS
+                let material = sdf_material(pnt).material;
+                let diffuse_color = material.color;
+            #else
+                let diffuse_color = vec3(1.0);
+            #endif
+
+            #ifdef LIGHTING
+                var indirect_light = diffuse_color * environment.sky * 0.5;
+                #ifdef AMBIENT_OCCLUSION
+                    let ambient_occlusion = ambient_occlusion(pnt, normal);
+                    indirect_light *= (0.6 + ambient_occlusion * 0.4);
+                #endif
+
+                let NoL = saturate(dot(normal, environment.sun_direction));
+                let diffuse_light = environment.sun_light * NoL;
+                var direct_light = diffuse_color * diffuse_light;
+                #ifdef SHADOW
+                    if NoL > 0.0 {
+                        direct_light *= shadow(
+                            pnt, environment.sun_direction, NoL,
+                            max(0.02, progress * texel_radius), 0.02
+                        );
+                    }
+                #endif
+
+                color = direct_light + indirect_light;
+            #else
+                color = diffuse_color;
+            #endif
+        } else {
+            #ifdef LIGHTING
+                color = environment.sky;
+            #else
+                color = vec3(1.0);
+            #endif
+        }
+
+        #ifdef DEBUG_ITERATIONS
+            let iterations = f32(iterations) / 32.0;
+            color *= vec3(saturate(iterations), saturate(2.0 - iterations), 0.0);
+        #endif
+
+        #ifdef DEBUG_SDF
             if sdf_plane_collided {
-                collided = false;
-                distance = sdf_plane_distance;
+                let pnt = pos + dir * sdf_plane_progress;
+                #ifdef MATERIALS
+                    let result = sdf_material(pnt);
+                    let diffuse_color = result.material.color;
+                    color = diffuse_color * ((result.distance * 2.0) % 1.0);
+                #else
+                    let sdf = sdf(pnt);
+                    color = vec3((sdf * 2.0) % 1.0);
+                #endif
             }
         #endif
 
-        if collided {
-            let normal = normal(pos + dir * distance);
-
-            #ifdef MATERIALS
-                let material = material(pos + dir * distance);
-            #else
-                let material = Material(vec3(1.0));
-            #endif
-
-            var color = material.color;
-
-            #ifdef LIGHTING
-                color *= (normal.z * 0.4 + 0.6);
-            #endif
-
-            #ifdef AMBIENT_OCCLUSION
-                let ambient_occlusion = ambient_occlusion(pos + dir * distance, normal);
-                color *= (0.6 + ambient_occlusion * 0.4);
-            #endif
-
-            #ifdef DEBUG_ITERATIONS
-                let iterations = f32(iterations) / 32.0;
-                color *= vec3(min(1.0, iterations), clamp(2.0 - iterations, 0.0, 1.0), 0.0);
-            #endif
-
-            return vec4(color, 1.0);
-        } else {
-            #ifdef DEBUG_SDF
-                if sdf_plane_collided {
-                    #ifdef MATERIALS
-                        let color = material(pos + dir * distance).color;
-                    #else
-                        let color = vec3(1.0);
-                    #endif
-                    let sdf = (sdf(pos + dir * distance) * 2.0) % 1.0;
-                    return vec4(color * sdf, 1.0);
-                }
-            #endif
-
-            return vec4(vec3(0.0), 1.0);
-        }
+        return vec4(color, 1.0);
     #endif
+}
+
+fn normal(pnt: vec3<f32>) -> vec3<f32> {
+    var epsilon = 0.001;
+    return normalize(
+        vec3(1.0, -1.0, -1.0) * sdf(pnt + vec3(1.0, -1.0, -1.0) * epsilon) +
+        vec3(-1.0, 1.0, -1.0) * sdf(pnt + vec3(-1.0, 1.0, -1.0) * epsilon) +
+        vec3(-1.0, -1.0, 1.0) * sdf(pnt + vec3(-1.0, -1.0, 1.0) * epsilon) +
+        vec3(1.0, 1.0, 1.0) * sdf(pnt + vec3(1.0, 1.0, 1.0) * epsilon)
+    );
 }
 
 // from: https://www.alanzucconi.com/2016/07/01/ambient-occlusion/
@@ -191,15 +243,21 @@ fn ambient_occlusion(pnt: vec3<f32>, normal: vec3<f32>) -> f32 {
     return sum * 3.07692307692;
 }
 
-fn normal(pnt: vec3<f32>) -> vec3<f32> {
-    var epsilon = 0.001;
-    return normalize(
-        vec3(1.0, -1.0, -1.0) * sdf(pnt + vec3(1.0, -1.0, -1.0) * epsilon) +
-        vec3(-1.0, 1.0, -1.0) * sdf(pnt + vec3(-1.0, 1.0, -1.0) * epsilon) +
-        vec3(-1.0, -1.0, 1.0) * sdf(pnt + vec3(-1.0, -1.0, 1.0) * epsilon) +
-        vec3(1.0, 1.0, 1.0) * sdf(pnt + vec3(1.0, 1.0, 1.0) * epsilon)
-    );
+fn shadow(pnt: vec3<f32>, incident_light: vec3<f32>, NoL: f32, rad: f32, penumbra: f32) -> f32 {
+    var progress = (rad + penumbra) / NoL;
+    var min_distance = 1024.0;
+    while (min_distance >= rad && progress < 1024.0) {
+        #ifdef DEBUG_ITERATIONS
+            iterations += 1u;
+        #endif
+        let distance = sdf(pnt + incident_light * progress);
+        min_distance = min(min_distance, distance);
+        progress += distance;
+    }
+    return saturate((min_distance - rad) / penumbra);
 }
+
+
 
 fn sdf_plane(index: u32, pnt: vec3<f32>) -> f32 {
     let plane = &shapes.planes[index];

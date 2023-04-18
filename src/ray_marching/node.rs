@@ -1,6 +1,7 @@
 use super::{
+    environment::{EnvironmentBindGroup, EnvironmentUniformIndex},
     shape::ShapesBindGroup,
-    stages::{StageBindGroups, StageUniformIndices, StageTextures},
+    stages::{StageBindGroups, StageTextures, StageUniformIndices},
     tracing::TracingPipelines,
     upsampling::UpsamplingPipeline,
     view::{ViewBindGroup, ViewUniformIndex},
@@ -20,6 +21,7 @@ pub(super) struct RayMarchingNode {
         &'static ExtractedCamera,
         &'static ViewTarget,
         &'static ViewUniformIndex,
+        &'static EnvironmentUniformIndex,
         &'static StageTextures,
         &'static StageUniformIndices,
         &'static StageBindGroups,
@@ -53,6 +55,7 @@ impl Node for RayMarchingNode {
             camera,
             target,
             view_index,
+            environment_index,
             stage_textures,
             stage_indices,
             stage_bind_groups,
@@ -77,6 +80,7 @@ impl Node for RayMarchingNode {
 
         let view_bind_group = world.resource::<ViewBindGroup>();
         let shapes_bind_group = world.resource::<ShapesBindGroup>();
+        let environment_bind_group = world.resource::<EnvironmentBindGroup>();
 
         {
             let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
@@ -141,7 +145,8 @@ impl Node for RayMarchingNode {
             render_pass.set_render_pipeline(last_tracing_pipeline);
             render_pass.set_bind_group(0, view_bind_group, &[view_index.index()]);
             render_pass.set_bind_group(1, shapes_bind_group, &[]);
-            render_pass.set_bind_group(2, &stage_bind_groups.last, &[stage_indices.last]);
+            render_pass.set_bind_group(2, environment_bind_group, &[environment_index.index()]);
+            render_pass.set_bind_group(3, &stage_bind_groups.last, &[stage_indices.last]);
             render_pass.draw(0..3, 0..1);
         }
 
