@@ -1,16 +1,18 @@
 use bevy::{
+    asset::Asset,
     ecs::query::QueryItem,
     math::Vec3A,
     prelude::{
-        warn, Children, Commands, Component, Entity, FromWorld, GlobalTransform, IntoSystemConfig,
-        Mat4, Parent, Plugin, Query, Res, ResMut, Resource, Vec3, With, Without, Handle, Image,
+        warn, Children, Commands, Component, Entity, FromWorld, GlobalTransform, Handle, Image,
+        IntoSystemConfig, Mat4, Parent, Plugin, Query, Res, ResMut, Resource, Vec3, With, Without,
     },
+    reflect::{FromReflect, Reflect, TypeUuid},
     render::{
         extract_component::{ExtractComponent, ExtractComponentPlugin},
         render_resource::*,
         renderer::{RenderDevice, RenderQueue},
         RenderApp, RenderSet,
-    }, asset::Asset, reflect::{Reflect, FromReflect, TypeUuid},
+    },
 };
 use std::{
     borrow::Borrow,
@@ -26,6 +28,8 @@ impl Plugin for ShapePlugin {
         app.sub_app_mut(RenderApp)
             .init_resource::<ShapesUniformBuffer>()
             .init_resource::<ShapesBindGroupLayout>()
+            .init_resource::<ShapeSampler>()
+            .init_resource::<ShapeTexture>()
             .add_system(prepare_shapes.in_set(RenderSet::Prepare))
             .add_system(queue_shapes_bind_group.in_set(RenderSet::Queue));
     }
@@ -46,9 +50,16 @@ pub enum ShapeType {
 #[derive(Clone, PartialEq, Debug)]
 pub enum Primitive {
     Plane,
-    Sphere { radius: f32 },
-    Cube { size: Vec3 },
-    Image { size: Vec3, image: Handle<ShapeImage> },
+    Sphere {
+        radius: f32,
+    },
+    Cube {
+        size: Vec3,
+    },
+    Image {
+        size: Vec3,
+        image: Handle<ShapeImage>,
+    },
 }
 
 #[derive(Reflect, FromReflect, Debug, Clone, TypeUuid)]
@@ -227,14 +238,7 @@ where
 
         match shape_type {
             ShapeType::Primitive(primitive, material) => {
-                add_primitive(
-                    uniform,
-                    indices,
-                    transform,
-                    primitive,
-                    material,
-                    false,
-                );
+                add_primitive(uniform, indices, transform, primitive, material, false);
                 (Operation::Union, *negative)
             }
             ShapeType::Compound(operation) => (*operation, *negative),
@@ -253,14 +257,7 @@ where
         match children {
             None => {
                 if let ShapeType::Primitive(primitive, material) = shape_type {
-                    add_primitive(
-                        uniform,
-                        indices,
-                        transform,
-                        primitive,
-                        material,
-                        *negative,
-                    )
+                    add_primitive(uniform, indices, transform, primitive, material, *negative)
                 }
             }
             Some(children) => {
@@ -277,15 +274,7 @@ where
     // Converting the shapes with children into groups
     let children = groups
         .iter()
-        .map(|(shape, children)| {
-            create_group(
-                shapes,
-                shape,
-                *children,
-                uniform,
-                indices,
-            )
-        })
+        .map(|(shape, children)| create_group(shapes, shape, *children, uniform, indices))
         .collect::<Vec<_>>();
 
     ShapeGroup {
@@ -387,17 +376,91 @@ impl FromWorld for ShapesBindGroupLayout {
         let device = world.resource::<RenderDevice>();
         Self(device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: "shapes_bind_group_layout".into(),
-            entries: &[BindGroupLayoutEntry {
-                binding: 0,
-                visibility: ShaderStages::FRAGMENT,
-                ty: BindingType::Buffer {
-                    ty: BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: Some(ShapesUniform::min_size()),
+            entries: &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: Some(ShapesUniform::min_size()),
+                    },
+                    count: None,
                 },
-                count: None,
-            }],
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                    count: None,
+                },
+                BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Float { filterable: true },
+                        view_dimension: TextureViewDimension::D3,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+            ],
         }))
+    }
+}
+
+#[derive(Resource)]
+struct ShapeSampler(Sampler);
+
+impl FromWorld for ShapeSampler {
+    fn from_world(world: &mut bevy::prelude::World) -> Self {
+        let device = world.resource::<RenderDevice>();
+        Self(device.create_sampler(&SamplerDescriptor {
+            min_filter: FilterMode::Linear,
+            mag_filter: FilterMode::Linear,
+            address_mode_u: AddressMode::ClampToEdge,
+            address_mode_v: AddressMode::ClampToEdge,
+            address_mode_w: AddressMode::ClampToEdge,
+            ..Default::default()
+        }))
+    }
+}
+
+#[derive(Resource)]
+struct ShapeTexture {
+    default: Texture,
+    default_view: TextureView,
+}
+
+impl FromWorld for ShapeTexture {
+    fn from_world(world: &mut bevy::prelude::World) -> Self {
+        let device = world.resource::<RenderDevice>();
+        let queue = world.resource::<RenderQueue>();
+
+        let default = device.create_texture_with_data(
+            queue,
+            &TextureDescriptor {
+                label: "default_shape_texture".into(),
+                size: Extent3d {
+                    width: 1,
+                    height: 1,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: TextureDimension::D3,
+                format: TextureFormat::R8Unorm,
+                usage: TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            },
+            &[0u8],
+        );
+
+        let default_view = default.create_view(&TextureViewDescriptor::default());
+
+        Self {
+            default,
+            default_view,
+        }
     }
 }
 
@@ -417,16 +480,28 @@ fn queue_shapes_bind_group(
     mut commands: Commands,
     bind_group_layout: Res<ShapesBindGroupLayout>,
     uniform_buffer: Res<ShapesUniformBuffer>,
+    sampler: Res<ShapeSampler>,
+    texture: Res<ShapeTexture>,
     device: Res<RenderDevice>,
 ) {
     commands.insert_resource(ShapesBindGroup(device.create_bind_group(
         &BindGroupDescriptor {
             label: "shapes_bind_group".into(),
             layout: &bind_group_layout,
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.0.binding().unwrap(),
-            }],
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: uniform_buffer.0.binding().unwrap(),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::Sampler(&sampler.0),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: BindingResource::TextureView(&texture.default_view),
+                },
+            ],
         },
     )));
 }
