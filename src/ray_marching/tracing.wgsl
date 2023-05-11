@@ -51,6 +51,10 @@ struct Stage {
 var<uniform> view: View;
 @group(1) @binding(0)
 var<uniform> shapes: Shapes;
+@group(1) @binding(1)
+var shape_texture: texture_3d<f32>;
+@group(1) @binding(2)
+var shape_sampler: sampler;
 
 #ifdef FIRST_STAGE
     @group(2) @binding(0)

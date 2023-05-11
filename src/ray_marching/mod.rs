@@ -8,7 +8,7 @@ mod view;
 
 pub use self::{
     environment::Environment,
-    shape::{Material, Operation, Primitive, Shape, ShapeType},
+    shape::{Material, Operation, Primitive, Shape, ShapeType, ShapeImage},
 };
 use self::{
     environment::EnvironmentPlugin, node::RayMarchingNode, shape::ShapePlugin,

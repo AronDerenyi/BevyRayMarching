@@ -2,7 +2,7 @@ use super::SelectedShape;
 use crate::ray_marching::{
     Material,
     Operation::{Intersection, Union},
-    Primitive::{Cube, Plane, Sphere},
+    Primitive::{Cube, Plane, Sphere, Image},
     Shape,
     ShapeType::{self, Compound, Primitive},
 };
@@ -163,6 +163,12 @@ fn shape_type_ui(ui: &mut Ui, shape_type: &mut ShapeType) {
         }
         Primitive(Cube { size }, material) => (
             "Cube",
+            (size.x + size.y + size.z) / 3.0,
+            *size,
+            material.clone(),
+        ),
+        Primitive(Image { size, .. }, material) => (
+            "Image",
             (size.x + size.y + size.z) / 3.0,
             *size,
             material.clone(),

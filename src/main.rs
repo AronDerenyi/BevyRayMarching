@@ -8,8 +8,8 @@ use ray_marching::RayMarching;
 use ray_marching::{
     Environment, Material,
     Operation::Intersection,
-    Primitive::{Cube, Sphere},
-    RayMarchingPlugin, Shape,
+    Primitive::{Cube, Image, Plane, Sphere},
+    RayMarchingPlugin, Shape, ShapeImage,
     ShapeType::{Compound, Primitive},
 };
 use std::f32::consts;
@@ -61,125 +61,141 @@ fn setup(mut commands: Commands) {
         },
     ));
 
-    commands
-        .spawn((
-            Name::new("Root"),
-            Shape::default(),
-            Transform::default(),
-            GlobalTransform::default(),
-        ))
-        .with_children(|builder| {
-            for y in -2..=2 {
-                for x in -2..=2 {
-                    builder.spawn((
-                        Name::new(format!("Sphere_{x}_{y}")),
-                        Shape {
-                            shape_type: Primitive(
-                                Sphere { radius: 0.4 },
-                                Material {
-                                    color: Vec3::new(1.0, 1.0, 1.0),
-                                },
-                            ),
-                            ..default()
-                        },
-                        Transform::from_xyz(x as f32, y as f32, 0.0),
-                        GlobalTransform::default(),
-                    ));
-                }
-            }
-        });
-    return;
+    commands.spawn((
+        Name::new("Image"),
+        Shape {
+            shape_type: Primitive(
+                Image {
+                    size: Vec3::ONE,
+                    image: Handle::default(),
+                },
+                Material::default(),
+            ),
+            ..default()
+        },
+        Transform::default(),
+        GlobalTransform::default(),
+    ));
 
-    commands
-        .spawn((
-            Name::new("Root"),
-            Shape {
-                shape_type: Compound(Intersection),
-                ..default()
-            },
-            Transform::default(),
-            GlobalTransform::default(),
-        ))
-        .with_children(|builder| {
-            builder.spawn((
-                Name::new("Sphere"),
-                Shape {
-                    shape_type: Primitive(
-                        Sphere { radius: 1.3 },
-                        Material {
-                            color: Vec3::new(0.1, 0.1, 0.1),
-                        },
-                    ),
-                    ..default()
-                },
-                Transform::default(),
-                GlobalTransform::default(),
-            ));
-            builder.spawn((
-                Name::new("ClipCube"),
-                Shape {
-                    shape_type: Primitive(
-                        Cube {
-                            size: Vec3::new(1.0, 1.0, 1.0),
-                        },
-                        Material {
-                            color: Vec3::new(1.0, 1.0, 1.0),
-                        },
-                    ),
-                    ..default()
-                },
-                Transform::default(),
-                GlobalTransform::default(),
-            ));
-            builder.spawn((
-                Name::new("HoleCubeX"),
-                Shape {
-                    shape_type: Primitive(
-                        Cube {
-                            size: Vec3::new(2.0, 0.4, 0.4),
-                        },
-                        Material {
-                            color: Vec3::new(1.0, 0.2, 0.8),
-                        },
-                    ),
-                    negative: true,
-                },
-                Transform::default(),
-                GlobalTransform::default(),
-            ));
-            builder.spawn((
-                Name::new("HoleCubeY"),
-                Shape {
-                    shape_type: Primitive(
-                        Cube {
-                            size: Vec3::new(0.4, 2.0, 0.4),
-                        },
-                        Material {
-                            color: Vec3::new(1.0, 0.2, 0.8),
-                        },
-                    ),
-                    negative: true,
-                },
-                Transform::default(),
-                GlobalTransform::default(),
-            ));
-            builder.spawn((
-                Name::new("HoleCubeZ"),
-                Shape {
-                    shape_type: Primitive(
-                        Cube {
-                            size: Vec3::new(0.4, 0.4, 2.0),
-                        },
-                        Material {
-                            color: Vec3::new(1.0, 0.2, 0.8),
-                        },
-                    ),
-                    negative: true,
-                },
-                Transform::default(),
-                GlobalTransform::default(),
-            ));
-        });
+    //    commands
+    //        .spawn((
+    //            Name::new("Root"),
+    //            Shape::default(),
+    //            Transform::default(),
+    //            GlobalTransform::default(),
+    //        ))
+    //        .with_children(|builder| {
+    //            for y in -2..=2 {
+    //                for x in -2..=2 {
+    //                    builder.spawn((
+    //                        Name::new(format!("Sphere_{x}_{y}")),
+    //                        Shape {
+    //                            shape_type: Primitive(
+    //                                Sphere { radius: 0.4 },
+    //                                Material {
+    //                                    color: Vec3::new(1.0, 1.0, 1.0),
+    //                                },
+    //                            ),
+    //                            ..default()
+    //                        },
+    //                        Transform::from_xyz(x as f32, y as f32, 0.0),
+    //                        GlobalTransform::default(),
+    //                    ));
+    //                }
+    //            }
+    //        });
+    //    return;
+
+    //    commands
+    //        .spawn((
+    //            Name::new("Root"),
+    //            Shape {
+    //                shape_type: Compound(Intersection),
+    //                ..default()
+    //            },
+    //            Transform::default(),
+    //            GlobalTransform::default(),
+    //        ))
+    //        .with_children(|builder| {
+    //            builder.spawn((
+    //                Name::new("Sphere"),
+    //                Shape {
+    //                    shape_type: Primitive(
+    //                        Sphere { radius: 1.3 },
+    //                        Material {
+    //                            color: Vec3::new(0.1, 0.1, 0.1),
+    //                        },
+    //                    ),
+    //                    ..default()
+    //                },
+    //                Transform::default(),
+    //                GlobalTransform::default(),
+    //            ));
+    //            builder.spawn((
+    //                Name::new("ClipCube"),
+    //                Shape {
+    //                    shape_type: Primitive(
+    //                        Cube {
+    //                            size: Vec3::new(1.0, 1.0, 1.0),
+    //                        },
+    //                        Material {
+    //                            color: Vec3::new(1.0, 1.0, 1.0),
+    //                        },
+    //                    ),
+    //                    ..default()
+    //                },
+    //                Transform::default(),
+    //                GlobalTransform::default(),
+    //            ));
+    //            builder.spawn((
+    //                Name::new("HoleCubeX"),
+    //                Shape {
+    //                    shape_type: Primitive(
+    //                        Cube {
+    //                            size: Vec3::new(2.0, 0.4, 0.4),
+    //                        },
+    //                        Material {
+    //                            color: Vec3::new(1.0, 0.2, 0.8),
+    //                        },
+    //                    ),
+    //                    negative: true,
+    //                },
+    //                Transform::default(),
+    //                GlobalTransform::default(),
+    //            ));
+    //            builder.spawn((
+    //                Name::new("HoleCubeY"),
+    //                Shape {
+    //                    shape_type: Primitive(
+    //                        Cube {
+    //                            size: Vec3::new(0.4, 2.0, 0.4),
+    //                        },
+    //                        Material {
+    //                            color: Vec3::new(1.0, 0.2, 0.8),
+    //                        },
+    //                    ),
+    //                    negative: true,
+    //                },
+    //                Transform::default(),
+    //                GlobalTransform::default(),
+    //            ));
+    //            builder.spawn((
+    //                Name::new("HoleCubeZ"),
+    //                Shape {
+    //                    shape_type: Primitive(
+    //                        Cube {
+    //                            size: Vec3::new(0.4, 0.4, 2.0),
+    //                        },
+    //                        Material {
+    //                            color: Vec3::new(1.0, 0.2, 0.8),
+    //                        },
+    //                    ),
+    //                    negative: true,
+    //                },
+    //                Transform::default(),
+    //                GlobalTransform::default(),
+    //            ));
+    //        });
 }
 
 fn orbit_controller(

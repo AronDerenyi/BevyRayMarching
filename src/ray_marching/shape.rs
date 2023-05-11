@@ -3,14 +3,14 @@ use bevy::{
     math::Vec3A,
     prelude::{
         warn, Children, Commands, Component, Entity, FromWorld, GlobalTransform, IntoSystemConfig,
-        Mat4, Parent, Plugin, Query, Res, ResMut, Resource, Vec3, With, Without,
+        Mat4, Parent, Plugin, Query, Res, ResMut, Resource, Vec3, With, Without, Handle, Image,
     },
     render::{
         extract_component::{ExtractComponent, ExtractComponentPlugin},
         render_resource::*,
         renderer::{RenderDevice, RenderQueue},
         RenderApp, RenderSet,
-    },
+    }, asset::Asset, reflect::{Reflect, FromReflect, TypeUuid},
 };
 use std::{
     borrow::Borrow,
@@ -48,6 +48,15 @@ pub enum Primitive {
     Plane,
     Sphere { radius: f32 },
     Cube { size: Vec3 },
+    Image { size: Vec3, image: Handle<ShapeImage> },
+}
+
+#[derive(Reflect, FromReflect, Debug, Clone, TypeUuid)]
+#[uuid = "ffded854-09c2-4261-835a-ee6f20a96ad9"]
+#[reflect_value]
+pub struct ShapeImage {
+    pub data: Vec<u8>,
+    pub size: Extent3d,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
@@ -160,6 +169,13 @@ pub struct ShapeGroup {
     pub negative: bool,
 }
 
+#[derive(Default)]
+struct ShapeIndices {
+    plane: u8,
+    sphere: u8,
+    cube: u8,
+}
+
 fn prepare_shapes(
     mut commands: Commands,
     roots: Query<Entity, With<RootShape>>,
@@ -169,18 +185,14 @@ fn prepare_shapes(
     mut uniform_buffer: ResMut<ShapesUniformBuffer>,
 ) {
     let mut uniform = ShapesUniform::default();
-    let mut plane_index = 0u8;
-    let mut sphere_index = 0u8;
-    let mut cube_index = 0u8;
+    let mut indices = ShapeIndices::default();
 
     let root_group = create_group(
         &shapes,
         &ExtractedShape::default(),
         roots.iter(),
         &mut uniform,
-        &mut plane_index,
-        &mut sphere_index,
-        &mut cube_index,
+        &mut indices,
     );
     commands.insert_resource(root_group);
 
@@ -193,18 +205,16 @@ fn create_group<T>(
     shape: &ExtractedShape,
     children: T,
     uniform: &mut ShapesUniform,
-    plane_index: &mut u8,
-    sphere_index: &mut u8,
-    cube_index: &mut u8,
+    indices: &mut ShapeIndices,
 ) -> ShapeGroup
 where
     T: IntoIterator,
     T::Item: Borrow<Entity>,
 {
     // Saving the starting indices
-    let mut plane_index_range = *plane_index..*plane_index;
-    let mut sphere_index_range = *sphere_index..*sphere_index;
-    let mut cube_index_range = *cube_index..*cube_index;
+    let mut plane_index_range = indices.plane..indices.plane;
+    let mut sphere_index_range = indices.sphere..indices.sphere;
+    let mut cube_index_range = indices.cube..indices.cube;
 
     // Calculating the operation and adding the shape if it has one
     let (operation, negative) = {
@@ -219,9 +229,7 @@ where
             ShapeType::Primitive(primitive, material) => {
                 add_primitive(
                     uniform,
-                    plane_index,
-                    sphere_index,
-                    cube_index,
+                    indices,
                     transform,
                     primitive,
                     material,
@@ -247,9 +255,7 @@ where
                 if let ShapeType::Primitive(primitive, material) = shape_type {
                     add_primitive(
                         uniform,
-                        plane_index,
-                        sphere_index,
-                        cube_index,
+                        indices,
                         transform,
                         primitive,
                         material,
@@ -264,9 +270,9 @@ where
     }
 
     // Saving the ending indices
-    plane_index_range.end = *plane_index;
-    sphere_index_range.end = *sphere_index;
-    cube_index_range.end = *cube_index;
+    plane_index_range.end = indices.plane;
+    sphere_index_range.end = indices.sphere;
+    cube_index_range.end = indices.cube;
 
     // Converting the shapes with children into groups
     let children = groups
@@ -277,9 +283,7 @@ where
                 shape,
                 *children,
                 uniform,
-                plane_index,
-                sphere_index,
-                cube_index,
+                indices,
             )
         })
         .collect::<Vec<_>>();
@@ -296,9 +300,7 @@ where
 
 fn add_primitive(
     uniform: &mut ShapesUniform,
-    plane_index: &mut u8,
-    sphere_index: &mut u8,
-    cube_index: &mut u8,
+    indices: &mut ShapeIndices,
     transform: &GlobalTransform,
     primitive: &Primitive,
     material: &Material,
@@ -306,45 +308,48 @@ fn add_primitive(
 ) {
     match primitive {
         Primitive::Plane => {
-            if *plane_index == MAX_PLANES {
+            if indices.plane == MAX_PLANES {
                 warn!("Too many planes are in the scene");
             } else {
                 let (inv_transform, scale) = get_inverse_transform(transform, negative);
-                uniform.planes[*plane_index as usize] = Plane {
+                uniform.planes[indices.plane as usize] = Plane {
                     inv_transform,
                     scale,
                     material: material.clone(),
                 };
-                *plane_index += 1;
+                indices.plane += 1;
             }
         }
         Primitive::Sphere { radius } => {
-            if *sphere_index == MAX_SPHERES {
+            if indices.sphere == MAX_SPHERES {
                 warn!("Too many spheres are in the scene");
             } else {
                 let (inv_transform, scale) = get_inverse_transform(transform, negative);
-                uniform.spheres[*sphere_index as usize] = Sphere {
+                uniform.spheres[indices.sphere as usize] = Sphere {
                     radius: *radius,
                     inv_transform,
                     scale,
                     material: material.clone(),
                 };
-                *sphere_index += 1;
+                indices.sphere += 1;
             }
         }
         Primitive::Cube { size } => {
-            if *cube_index == MAX_CUBES {
+            if indices.cube == MAX_CUBES {
                 warn!("Too many cubes are in the scene");
             } else {
                 let (inv_transform, scale) = get_inverse_transform(transform, negative);
-                uniform.cubes[*cube_index as usize] = Cube {
+                uniform.cubes[indices.cube as usize] = Cube {
                     size: *size,
                     inv_transform,
                     scale,
                     material: material.clone(),
                 };
-                *cube_index += 1;
+                indices.cube += 1;
             }
+        }
+        Primitive::Image { size: _, image: _ } => {
+            warn!("Too many images are in the scene");
         }
     }
 }
