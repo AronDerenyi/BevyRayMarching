@@ -55,24 +55,18 @@ pub enum ShapeType {
 #[derive(Clone, PartialEq, Debug)]
 pub enum Primitive {
     Plane,
-    Sphere {
-        radius: f32,
-    },
-    Cube {
-        size: Vec3,
-    },
-    Image {
-        size: Vec3,
-        image: Handle<ShapeImage>,
-    },
+    Sphere { radius: f32 },
+    Cube { size: Vec3 },
+    Image(Handle<ShapeImage>),
 }
 
 #[derive(Reflect, FromReflect, Debug, Clone, TypeUuid)]
 #[uuid = "ffded854-09c2-4261-835a-ee6f20a96ad9"]
 #[reflect_value]
 pub struct ShapeImage {
+    pub size: Vec3,
+    pub resolution: Extent3d,
     pub data: Vec<f32>,
-    pub size: Extent3d,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
@@ -140,7 +134,8 @@ impl ExtractComponent for RootShape {
 
 #[derive(Debug, Clone)]
 pub struct ShapeTexture {
-    size: Extent3d,
+    size: Vec3,
+    resolution: Extent3d,
     texture: Texture,
     texture_view: TextureView,
 }
@@ -162,7 +157,7 @@ impl RenderAsset for ShapeImage {
             queue,
             &TextureDescriptor {
                 label: "shape_texture".into(),
-                size: image.size.clone(),
+                size: image.resolution.clone(),
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: TextureDimension::D3,
@@ -178,7 +173,8 @@ impl RenderAsset for ShapeImage {
         let texture_view = texture.create_view(&TextureViewDescriptor::default());
 
         Ok(ShapeTexture {
-            size: image.size.clone(),
+            size: image.size,
+            resolution: image.resolution,
             texture,
             texture_view,
         })
@@ -215,7 +211,7 @@ struct Sphere {
 
 #[derive(ShaderType, Clone, Default)]
 struct Cube {
-    pub size: Vec3,
+    pub bounds: Vec3,
     pub inv_transform: Mat4,
     pub scale: f32,
     pub material: Material,
@@ -223,8 +219,8 @@ struct Cube {
 
 #[derive(ShaderType, Clone, Default)]
 struct Image {
-    size: Vec3,
-    texture_size: Vec3,
+    bounds: Vec3,
+    texture_bounds: Vec3,
     inv_transform: Mat4,
     scale: f32,
     material: Material,
@@ -413,7 +409,7 @@ fn add_primitive(
             } else {
                 let (inv_transform, scale) = get_inverse_transform(transform, negative);
                 uniform.cubes[indices.cube as usize] = Cube {
-                    size: *size,
+                    bounds: *size / 2.0,
                     inv_transform,
                     scale,
                     material: material.clone(),
@@ -421,19 +417,21 @@ fn add_primitive(
                 indices.cube += 1;
             }
         }
-        Primitive::Image { size, image } => {
+        Primitive::Image(image) => {
             if indices.image == MAX_IMAGES {
                 warn!("Too many images are in the scene");
             } else {
                 if let Some(texture) = images.get(&image) {
                     let (inv_transform, scale) = get_inverse_transform(transform, negative);
                     uniform.images[indices.image as usize] = Image {
-                        size: *size,
-                        texture_size: *size / Vec3::new(
-                            1.0 - 1.0 / texture.size.width as f32,
-                            1.0 - 1.0 / texture.size.height as f32,
-                            1.0 - 1.0 / texture.size.depth_or_array_layers as f32,
-                        ),
+                        bounds: texture.size / 2.0,
+                        texture_bounds: texture.size
+                            / 2.0
+                            / Vec3::new(
+                                1.0 - 1.0 / texture.resolution.width as f32,
+                                1.0 - 1.0 / texture.resolution.height as f32,
+                                1.0 - 1.0 / texture.resolution.depth_or_array_layers as f32,
+                            ),
                         inv_transform,
                         scale,
                         material: material.clone(),
@@ -539,7 +537,7 @@ impl FromWorld for ShapeTextures {
         let device = world.resource::<RenderDevice>();
         let queue = world.resource::<RenderQueue>();
 
-        let size = Extent3d {
+        let resolution = Extent3d {
             width: 1,
             height: 1,
             depth_or_array_layers: 1,
@@ -549,7 +547,7 @@ impl FromWorld for ShapeTextures {
             queue,
             &TextureDescriptor {
                 label: "default_shape_texture".into(),
-                size,
+                size: resolution,
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: TextureDimension::D3,
@@ -564,7 +562,8 @@ impl FromWorld for ShapeTextures {
 
         Self {
             default: ShapeTexture {
-                size,
+                size: Vec3::ZERO,
+                resolution,
                 texture,
                 texture_view,
             },

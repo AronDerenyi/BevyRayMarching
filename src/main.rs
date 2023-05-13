@@ -62,8 +62,9 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<ShapeImage>>) {
         },
     ));
 
-    let s = 5;
-    let size = Extent3d {
+    let s = 256;
+    let size = Vec3::splat(8.0);
+    let resolution = Extent3d {
         width: s,
         height: s,
         depth_or_array_layers: s,
@@ -72,10 +73,10 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<ShapeImage>>) {
     for k in 0..s {
         for j in 0..s {
             for i in 0..s {
-                let x = i as f32 / (s - 1) as f32 * 2.0 - 1.0;
-                let y = j as f32 / (s - 1) as f32 * 2.0 - 1.0;
-                let z = k as f32 / (s - 1) as f32 * 2.0 - 1.0;
-                let dist = (x * x + y * y + z * z).sqrt() - 1.0;
+                let x = i as f32 / (s - 1) as f32 * size.x - 4.0;
+                let y = j as f32 / (s - 1) as f32 * size.y - 4.0;
+                let z = k as f32 / (s - 1) as f32 * size.z - 4.0;
+                let dist = (x * x + y * y + z * z).sqrt() - 3.0;
                 data.push(dist);
             }
         }
@@ -85,10 +86,11 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<ShapeImage>>) {
         Name::new("Image"),
         Shape {
             shape_type: Primitive(
-                Image {
-                    size: Vec3::ONE,
-                    image: images.add(ShapeImage { data, size }),
-                },
+                Image(images.add(ShapeImage {
+                    size,
+                    resolution,
+                    data,
+                })),
                 Material::default(),
             ),
             ..default()

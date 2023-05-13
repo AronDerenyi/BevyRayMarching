@@ -34,15 +34,15 @@ struct Sphere {
 };
 
 struct Cube {
-    size: vec3<f32>,
+    bounds: vec3<f32>,
     inv_transform: mat4x4<f32>,
     scale: f32,
     material: Material,
 };
 
 struct Image {
-    size: vec3<f32>,
-    texture_size: vec3<f32>,
+    bounds: vec3<f32>,
+    texture_bounds: vec3<f32>,
     inv_transform: mat4x4<f32>,
     scale: f32,
     material: Material,
@@ -296,18 +296,18 @@ fn sdf_sphere(index: u32, pnt: vec3<f32>) -> f32 {
 
 fn sdf_cube(index: u32, pnt: vec3<f32>) -> f32 {
     let cube = &shapes.cubes[index];
-    let q = abs(pos_transform(pnt, (*cube).inv_transform)) - (*cube).size;
+    let q = abs(pos_transform(pnt, (*cube).inv_transform)) - (*cube).bounds;
     return (length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0)) * (*cube).scale;
 }
 
 fn sdf_image(index: u32, pnt: vec3<f32>) -> f32 {
     let image = &shapes.images[index];
     let transformed_pnt = pos_transform(pnt, (*image).inv_transform);
-    let q = abs(transformed_pnt) - (*image).size;
+    let q = abs(transformed_pnt) - (*image).bounds;
     let cube_distance = length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0);
     let image_distance = textureSample(
         shape_texture, shape_sampler,
-        (transformed_pnt / (*image).texture_size + vec3(1.0)) * 0.5
+        (transformed_pnt / (*image).texture_bounds + vec3(1.0)) * 0.5
     ).r;
     return select(
         image_distance,

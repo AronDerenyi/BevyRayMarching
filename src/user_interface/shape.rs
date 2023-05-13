@@ -167,10 +167,10 @@ fn shape_type_ui(ui: &mut Ui, shape_type: &mut ShapeType) {
             *size,
             material.clone(),
         ),
-        Primitive(Image { size, .. }, material) => (
+        Primitive(Image { .. }, material) => (
             "Image",
-            (size.x + size.y + size.z) / 3.0,
-            *size,
+            1.0,
+            Vec3::ONE,
             material.clone(),
         ),
         Compound(Union) => ("Union", 1.0, Vec3::ONE, Material::default()),
