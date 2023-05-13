@@ -2,6 +2,7 @@ mod ray_marching;
 mod user_interface;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::prelude::*;
+use bevy::render::render_resource::Extent3d;
 use bevy::{diagnostic::LogDiagnosticsPlugin, input::mouse::MouseWheel};
 use bevy_egui::EguiPlugin;
 use ray_marching::RayMarching;
@@ -40,7 +41,7 @@ fn main() {
         .run();
 }
 
-fn setup(mut commands: Commands) {
+fn setup(mut commands: Commands, mut images: ResMut<Assets<ShapeImage>>) {
     commands.spawn((
         Camera3dBundle::default(),
         RayMarching {
@@ -61,13 +62,32 @@ fn setup(mut commands: Commands) {
         },
     ));
 
+    let s = 5;
+    let size = Extent3d {
+        width: s,
+        height: s,
+        depth_or_array_layers: s,
+    };
+    let mut data = vec![];
+    for k in 0..s {
+        for j in 0..s {
+            for i in 0..s {
+                let x = i as f32 / (s - 1) as f32 * 2.0 - 1.0;
+                let y = j as f32 / (s - 1) as f32 * 2.0 - 1.0;
+                let z = k as f32 / (s - 1) as f32 * 2.0 - 1.0;
+                let dist = (x * x + y * y + z * z).sqrt() - 0.9;
+                data.push(dist);
+            }
+        }
+    }
+
     commands.spawn((
         Name::new("Image"),
         Shape {
             shape_type: Primitive(
                 Image {
                     size: Vec3::ONE,
-                    image: Handle::default(),
+                    image: images.add(ShapeImage { data, size }),
                 },
                 Material::default(),
             ),

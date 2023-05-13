@@ -1,14 +1,17 @@
 use bevy::{
-    asset::Asset,
-    ecs::query::QueryItem,
+    ecs::{
+        query::QueryItem,
+        system::{lifetimeless::SRes, SystemParamItem},
+    },
     math::Vec3A,
     prelude::{
-        warn, Children, Commands, Component, Entity, FromWorld, GlobalTransform, Handle,
+        warn, AddAsset, Children, Commands, Component, Entity, FromWorld, GlobalTransform, Handle,
         IntoSystemConfig, Mat4, Parent, Plugin, Query, Res, ResMut, Resource, Vec3, With, Without,
     },
     reflect::{FromReflect, Reflect, TypeUuid},
     render::{
         extract_component::{ExtractComponent, ExtractComponentPlugin},
+        render_asset::{PrepareAssetError, RenderAsset, RenderAssetPlugin, RenderAssets},
         render_resource::*,
         renderer::{RenderDevice, RenderQueue},
         RenderApp, RenderSet,
@@ -23,13 +26,15 @@ pub struct ShapePlugin;
 
 impl Plugin for ShapePlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
-        app.add_plugin(ExtractComponentPlugin::<ExtractedShape>::default());
-        app.add_plugin(ExtractComponentPlugin::<RootShape>::default());
+        app.add_asset::<ShapeImage>()
+            .add_plugin(ExtractComponentPlugin::<ExtractedShape>::default())
+            .add_plugin(ExtractComponentPlugin::<RootShape>::default())
+            .add_plugin(RenderAssetPlugin::<ShapeImage>::default());
         app.sub_app_mut(RenderApp)
             .init_resource::<ShapesUniformBuffer>()
             .init_resource::<ShapesBindGroupLayout>()
             .init_resource::<ShapeSampler>()
-            .init_resource::<ShapeTexture>()
+            .init_resource::<ShapeTextures>()
             .add_system(prepare_shapes.in_set(RenderSet::Prepare))
             .add_system(queue_shapes_bind_group.in_set(RenderSet::Queue));
     }
@@ -66,7 +71,7 @@ pub enum Primitive {
 #[uuid = "ffded854-09c2-4261-835a-ee6f20a96ad9"]
 #[reflect_value]
 pub struct ShapeImage {
-    pub data: Vec<u8>,
+    pub data: Vec<f32>,
     pub size: Extent3d,
 }
 
@@ -130,6 +135,51 @@ impl ExtractComponent for RootShape {
 
     fn extract_component(_: QueryItem<'_, Self::Query>) -> Option<Self> {
         Some(Self)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ShapeTexture {
+    texture: Texture,
+    texture_view: TextureView,
+}
+
+impl RenderAsset for ShapeImage {
+    type ExtractedAsset = ShapeImage;
+    type PreparedAsset = ShapeTexture;
+    type Param = (SRes<RenderDevice>, SRes<RenderQueue>);
+
+    fn extract_asset(&self) -> Self::ExtractedAsset {
+        self.clone()
+    }
+
+    fn prepare_asset(
+        image: Self::ExtractedAsset,
+        (device, queue): &mut SystemParamItem<Self::Param>,
+    ) -> Result<Self::PreparedAsset, PrepareAssetError<Self::ExtractedAsset>> {
+        let texture = device.create_texture_with_data(
+            queue,
+            &TextureDescriptor {
+                label: "shape_texture".into(),
+                size: image.size.clone(),
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: TextureDimension::D3,
+                format: TextureFormat::R32Float,
+                usage: TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            },
+            unsafe {
+                std::slice::from_raw_parts(image.data.as_ptr() as *const u8, image.data.len() * 4)
+            },
+        );
+
+        let texture_view = texture.create_view(&TextureViewDescriptor::default());
+
+        Ok(ShapeTexture {
+            texture,
+            texture_view,
+        })
     }
 }
 
@@ -203,18 +253,23 @@ fn prepare_shapes(
     mut commands: Commands,
     roots: Query<Entity, With<RootShape>>,
     shapes: Query<&ExtractedShape>,
+    images: Res<RenderAssets<ShapeImage>>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     mut uniform_buffer: ResMut<ShapesUniformBuffer>,
+    mut textures: ResMut<ShapeTextures>,
 ) {
+    textures.texture = None;
     let mut uniform = ShapesUniform::default();
     let mut indices = ShapeIndices::default();
 
     let root_group = create_group(
         &shapes,
+        &images,
         &ExtractedShape::default(),
         roots.iter(),
         &mut uniform,
+        &mut textures,
         &mut indices,
     );
     commands.insert_resource(root_group);
@@ -225,9 +280,11 @@ fn prepare_shapes(
 
 fn create_group<T>(
     shapes: &Query<&ExtractedShape>,
+    images: &RenderAssets<ShapeImage>,
     shape: &ExtractedShape,
     children: T,
     uniform: &mut ShapesUniform,
+    textures: &mut ShapeTextures,
     indices: &mut ShapeIndices,
 ) -> ShapeGroup
 where
@@ -251,7 +308,9 @@ where
 
         match shape_type {
             ShapeType::Primitive(primitive, material) => {
-                add_primitive(uniform, indices, transform, primitive, material, false);
+                add_primitive(
+                    images, uniform, textures, indices, transform, primitive, material, false,
+                );
                 (Operation::Union, *negative)
             }
             ShapeType::Compound(operation) => (*operation, *negative),
@@ -270,7 +329,10 @@ where
         match children {
             None => {
                 if let ShapeType::Primitive(primitive, material) = shape_type {
-                    add_primitive(uniform, indices, transform, primitive, material, *negative)
+                    add_primitive(
+                        images, uniform, textures, indices, transform, primitive, material,
+                        *negative,
+                    )
                 }
             }
             Some(children) => {
@@ -288,7 +350,9 @@ where
     // Converting the shapes with children into groups
     let children = groups
         .iter()
-        .map(|(shape, children)| create_group(shapes, shape, *children, uniform, indices))
+        .map(|(shape, children)| {
+            create_group(shapes, images, shape, *children, uniform, textures, indices)
+        })
         .collect::<Vec<_>>();
 
     ShapeGroup {
@@ -303,7 +367,9 @@ where
 }
 
 fn add_primitive(
+    images: &RenderAssets<ShapeImage>,
     uniform: &mut ShapesUniform,
+    textures: &mut ShapeTextures,
     indices: &mut ShapeIndices,
     transform: &GlobalTransform,
     primitive: &Primitive,
@@ -352,7 +418,7 @@ fn add_primitive(
                 indices.cube += 1;
             }
         }
-        Primitive::Image { size, image: _ } => {
+        Primitive::Image { size, image } => {
             if indices.image == MAX_IMAGES {
                 warn!("Too many images are in the scene");
             } else {
@@ -363,6 +429,7 @@ fn add_primitive(
                     scale,
                     material: material.clone(),
                 };
+                textures.texture = images.get(&image).cloned();
                 indices.image += 1;
             }
         }
@@ -452,57 +519,43 @@ impl FromWorld for ShapeSampler {
 }
 
 #[derive(Resource)]
-struct ShapeTexture {
-    default: Texture,
-    default_view: TextureView,
+struct ShapeTextures {
+    default: ShapeTexture,
+    texture: Option<ShapeTexture>,
 }
 
-impl FromWorld for ShapeTexture {
+impl FromWorld for ShapeTextures {
     fn from_world(world: &mut bevy::prelude::World) -> Self {
         let device = world.resource::<RenderDevice>();
         let queue = world.resource::<RenderQueue>();
 
-        let s = 5;
-        let mut data = [0u8; 5 * 5 * 5];
-        let mut index = 0;
-        for k in 0..s {
-            for j in 0..s {
-                for i in 0..s {
-                    let x = i as f32 / (s - 1) as f32 * 2.0 - 1.0;
-                    let y = j as f32 / (s - 1) as f32 * 2.0 - 1.0;
-                    let z = k as f32 / (s - 1) as f32 * 2.0 - 1.0;
-                    let dist = (x * x + y * y + z * z).sqrt() - 0.9;
-                    data[index] = unsafe { std::mem::transmute::<i8, u8>((dist * 127.0) as i8) };
-                    println!("{} => {}", (dist * 127.0) as i8, data[index]);
-                    index += 1;
-                }
-            }
-        }
-
-        let default = device.create_texture_with_data(
+        let texture = device.create_texture_with_data(
             queue,
             &TextureDescriptor {
                 label: "default_shape_texture".into(),
                 size: Extent3d {
-                    width: s,
-                    height: s,
-                    depth_or_array_layers: s,
+                    width: 1,
+                    height: 1,
+                    depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: TextureDimension::D3,
-                format: TextureFormat::R8Snorm,
+                format: TextureFormat::R8Unorm,
                 usage: TextureUsages::TEXTURE_BINDING,
                 view_formats: &[],
             },
-            &data,
+            &[0u8],
         );
 
-        let default_view = default.create_view(&TextureViewDescriptor::default());
+        let texture_view = texture.create_view(&TextureViewDescriptor::default());
 
         Self {
-            default,
-            default_view,
+            default: ShapeTexture {
+                texture,
+                texture_view,
+            },
+            texture: None,
         }
     }
 }
@@ -524,9 +577,14 @@ fn queue_shapes_bind_group(
     bind_group_layout: Res<ShapesBindGroupLayout>,
     uniform_buffer: Res<ShapesUniformBuffer>,
     sampler: Res<ShapeSampler>,
-    texture: Res<ShapeTexture>,
+    textures: Res<ShapeTextures>,
     device: Res<RenderDevice>,
 ) {
+    let texture_view = match &textures.texture {
+        Some(texture) => &texture.texture_view,
+        None => &textures.default.texture_view,
+    };
+
     commands.insert_resource(ShapesBindGroup(device.create_bind_group(
         &BindGroupDescriptor {
             label: "shapes_bind_group".into(),
@@ -542,7 +600,7 @@ fn queue_shapes_bind_group(
                 },
                 BindGroupEntry {
                     binding: 2,
-                    resource: BindingResource::TextureView(&texture.default_view),
+                    resource: BindingResource::TextureView(texture_view),
                 },
             ],
         },
