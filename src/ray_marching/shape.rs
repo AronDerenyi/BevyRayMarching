@@ -140,6 +140,7 @@ impl ExtractComponent for RootShape {
 
 #[derive(Debug, Clone)]
 pub struct ShapeTexture {
+    size: Extent3d,
     texture: Texture,
     texture_view: TextureView,
 }
@@ -177,6 +178,7 @@ impl RenderAsset for ShapeImage {
         let texture_view = texture.create_view(&TextureViewDescriptor::default());
 
         Ok(ShapeTexture {
+            size: image.size.clone(),
             texture,
             texture_view,
         })
@@ -221,10 +223,11 @@ struct Cube {
 
 #[derive(ShaderType, Clone, Default)]
 struct Image {
-    pub size: Vec3,
-    pub inv_transform: Mat4,
-    pub scale: f32,
-    pub material: Material,
+    size: Vec3,
+    texture_size: Vec3,
+    inv_transform: Mat4,
+    scale: f32,
+    material: Material,
 }
 
 #[derive(Resource, Default)]
@@ -422,15 +425,22 @@ fn add_primitive(
             if indices.image == MAX_IMAGES {
                 warn!("Too many images are in the scene");
             } else {
-                let (inv_transform, scale) = get_inverse_transform(transform, negative);
-                uniform.images[indices.image as usize] = Image {
-                    size: *size,
-                    inv_transform,
-                    scale,
-                    material: material.clone(),
-                };
-                textures.texture = images.get(&image).cloned();
-                indices.image += 1;
+                if let Some(texture) = images.get(&image) {
+                    let (inv_transform, scale) = get_inverse_transform(transform, negative);
+                    uniform.images[indices.image as usize] = Image {
+                        size: *size,
+                        texture_size: *size / Vec3::new(
+                            1.0 - 1.0 / texture.size.width as f32,
+                            1.0 - 1.0 / texture.size.height as f32,
+                            1.0 - 1.0 / texture.size.depth_or_array_layers as f32,
+                        ),
+                        inv_transform,
+                        scale,
+                        material: material.clone(),
+                    };
+                    textures.texture = Some(texture.clone());
+                    indices.image += 1;
+                }
             }
         }
     }
@@ -529,15 +539,17 @@ impl FromWorld for ShapeTextures {
         let device = world.resource::<RenderDevice>();
         let queue = world.resource::<RenderQueue>();
 
+        let size = Extent3d {
+            width: 1,
+            height: 1,
+            depth_or_array_layers: 1,
+        };
+
         let texture = device.create_texture_with_data(
             queue,
             &TextureDescriptor {
                 label: "default_shape_texture".into(),
-                size: Extent3d {
-                    width: 1,
-                    height: 1,
-                    depth_or_array_layers: 1,
-                },
+                size,
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: TextureDimension::D3,
@@ -552,6 +564,7 @@ impl FromWorld for ShapeTextures {
 
         Self {
             default: ShapeTexture {
+                size,
                 texture,
                 texture_view,
             },

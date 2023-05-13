@@ -75,7 +75,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<ShapeImage>>) {
                 let x = i as f32 / (s - 1) as f32 * 2.0 - 1.0;
                 let y = j as f32 / (s - 1) as f32 * 2.0 - 1.0;
                 let z = k as f32 / (s - 1) as f32 * 2.0 - 1.0;
-                let dist = (x * x + y * y + z * z).sqrt() - 0.9;
+                let dist = (x * x + y * y + z * z).sqrt() - 1.0;
                 data.push(dist);
             }
         }

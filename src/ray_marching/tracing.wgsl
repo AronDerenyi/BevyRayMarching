@@ -42,6 +42,7 @@ struct Cube {
 
 struct Image {
     size: vec3<f32>,
+    texture_size: vec3<f32>,
     inv_transform: mat4x4<f32>,
     scale: f32,
     material: Material,
@@ -304,7 +305,10 @@ fn sdf_image(index: u32, pnt: vec3<f32>) -> f32 {
     let transformed_pnt = pos_transform(pnt, (*image).inv_transform);
     let q = abs(transformed_pnt) - (*image).size;
     let cube_distance = length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0);
-    let image_distance = textureSample(shape_texture, shape_sampler, (transformed_pnt + vec3(1.0)) * 0.5).r;
+    let image_distance = textureSample(
+        shape_texture, shape_sampler,
+        (transformed_pnt / (*image).texture_size + vec3(1.0)) * 0.5
+    ).r;
     return select(
         image_distance,
         length(vec2(cube_distance, image_distance)),
