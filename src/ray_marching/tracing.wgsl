@@ -17,6 +17,7 @@ struct Shapes {
     planes: array<Plane, #{MAX_PLANES}>,
     spheres: array<Sphere, #{MAX_SPHERES}>,
     cubes: array<Cube, #{MAX_CUBES}>,
+    images: array<Image, #{MAX_IMAGES}>,
 };
 
 struct Plane {
@@ -33,6 +34,13 @@ struct Sphere {
 };
 
 struct Cube {
+    size: vec3<f32>,
+    inv_transform: mat4x4<f32>,
+    scale: f32,
+    material: Material,
+};
+
+struct Image {
     size: vec3<f32>,
     inv_transform: mat4x4<f32>,
     scale: f32,
@@ -228,7 +236,7 @@ fn main(@location(0) uv: vec2<f32>) ->
 }
 
 fn normal(pnt: vec3<f32>) -> vec3<f32> {
-    var epsilon = 0.001;
+    var epsilon = 0.01;
     return normalize(
         vec3(1.0, -1.0, -1.0) * sdf(pnt + vec3(1.0, -1.0, -1.0) * epsilon) +
         vec3(-1.0, 1.0, -1.0) * sdf(pnt + vec3(-1.0, 1.0, -1.0) * epsilon) +
@@ -287,8 +295,21 @@ fn sdf_sphere(index: u32, pnt: vec3<f32>) -> f32 {
 
 fn sdf_cube(index: u32, pnt: vec3<f32>) -> f32 {
     let cube = &shapes.cubes[index];
-    var q = abs(pos_transform(pnt, (*cube).inv_transform)) - (*cube).size;
+    let q = abs(pos_transform(pnt, (*cube).inv_transform)) - (*cube).size;
     return (length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0)) * (*cube).scale;
+}
+
+fn sdf_image(index: u32, pnt: vec3<f32>) -> f32 {
+    let image = &shapes.images[index];
+    let transformed_pnt = pos_transform(pnt, (*image).inv_transform);
+    let q = abs(transformed_pnt) - (*image).size;
+    let cube_distance = length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0);
+    let image_distance = textureSample(shape_texture, shape_sampler, (transformed_pnt + vec3(1.0)) * 0.5).r;
+    return select(
+        image_distance,
+        length(vec2(cube_distance, image_distance)),
+        cube_distance > 0.0
+    ) * (*image).scale;
 }
 
 

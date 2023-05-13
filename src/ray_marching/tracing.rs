@@ -1,6 +1,6 @@
 use super::{
     environment::EnvironmentBindGroupLayout,
-    shape::{ShapeGroup, ShapesBindGroupLayout, MAX_CUBES, MAX_PLANES, MAX_SPHERES},
+    shape::{ShapeGroup, ShapesBindGroupLayout, MAX_CUBES, MAX_PLANES, MAX_SPHERES, MAX_IMAGES},
     stages::StageBindGroupLayouts,
     view::ViewBindGroupLayout,
     RayMarching,
@@ -128,6 +128,7 @@ impl SpecializedRenderPipeline for TracingPipeline {
             ShaderDefVal::Int("MAX_PLANES".into(), MAX_PLANES as i32),
             ShaderDefVal::Int("MAX_SPHERES".into(), MAX_SPHERES as i32),
             ShaderDefVal::Int("MAX_CUBES".into(), MAX_CUBES as i32),
+            ShaderDefVal::Int("MAX_IMAGES".into(), MAX_IMAGES as i32),
             ShaderDefVal::Int("FAR".into(), 64),
         ];
 
@@ -315,6 +316,13 @@ fn generate_group_sdf(group: &ShapeGroup, index: &mut u8, material: bool) -> Str
         group.operation,
         "cube",
         &group.cube_index_range,
+        material,
+    );
+    source += &generate_shapes_sdf(
+        group_index,
+        group.operation,
+        "image",
+        &group.image_index_range,
         material,
     );
 

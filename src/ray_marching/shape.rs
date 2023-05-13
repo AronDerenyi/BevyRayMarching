@@ -3,7 +3,7 @@ use bevy::{
     ecs::query::QueryItem,
     math::Vec3A,
     prelude::{
-        warn, Children, Commands, Component, Entity, FromWorld, GlobalTransform, Handle, Image,
+        warn, Children, Commands, Component, Entity, FromWorld, GlobalTransform, Handle,
         IntoSystemConfig, Mat4, Parent, Plugin, Query, Res, ResMut, Resource, Vec3, With, Without,
     },
     reflect::{FromReflect, Reflect, TypeUuid},
@@ -136,12 +136,14 @@ impl ExtractComponent for RootShape {
 pub const MAX_PLANES: u8 = 4;
 pub const MAX_SPHERES: u8 = 24;
 pub const MAX_CUBES: u8 = 24;
+pub const MAX_IMAGES: u8 = 1;
 
 #[derive(ShaderType, Clone, Default)]
 struct ShapesUniform {
     planes: [Plane; MAX_PLANES as usize],
     spheres: [Sphere; MAX_SPHERES as usize],
     cubes: [Cube; MAX_CUBES as usize],
+    images: [Image; MAX_IMAGES as usize],
 }
 
 #[derive(ShaderType, Clone, Default)]
@@ -167,6 +169,14 @@ struct Cube {
     pub material: Material,
 }
 
+#[derive(ShaderType, Clone, Default)]
+struct Image {
+    pub size: Vec3,
+    pub inv_transform: Mat4,
+    pub scale: f32,
+    pub material: Material,
+}
+
 #[derive(Resource, Default)]
 struct ShapesUniformBuffer(UniformBuffer<ShapesUniform>);
 
@@ -175,6 +185,7 @@ pub struct ShapeGroup {
     pub plane_index_range: Range<u8>,
     pub sphere_index_range: Range<u8>,
     pub cube_index_range: Range<u8>,
+    pub image_index_range: Range<u8>,
     pub children: Vec<Self>,
     pub operation: Operation,
     pub negative: bool,
@@ -185,6 +196,7 @@ struct ShapeIndices {
     plane: u8,
     sphere: u8,
     cube: u8,
+    image: u8,
 }
 
 fn prepare_shapes(
@@ -226,6 +238,7 @@ where
     let mut plane_index_range = indices.plane..indices.plane;
     let mut sphere_index_range = indices.sphere..indices.sphere;
     let mut cube_index_range = indices.cube..indices.cube;
+    let mut image_index_range = indices.image..indices.image;
 
     // Calculating the operation and adding the shape if it has one
     let (operation, negative) = {
@@ -270,6 +283,7 @@ where
     plane_index_range.end = indices.plane;
     sphere_index_range.end = indices.sphere;
     cube_index_range.end = indices.cube;
+    image_index_range.end = indices.image;
 
     // Converting the shapes with children into groups
     let children = groups
@@ -281,6 +295,7 @@ where
         plane_index_range,
         sphere_index_range,
         cube_index_range,
+        image_index_range,
         children,
         operation,
         negative,
@@ -337,8 +352,19 @@ fn add_primitive(
                 indices.cube += 1;
             }
         }
-        Primitive::Image { size: _, image: _ } => {
-            warn!("Too many images are in the scene");
+        Primitive::Image { size, image: _ } => {
+            if indices.image == MAX_IMAGES {
+                warn!("Too many images are in the scene");
+            } else {
+                let (inv_transform, scale) = get_inverse_transform(transform, negative);
+                uniform.images[indices.image as usize] = Image {
+                    size: *size,
+                    inv_transform,
+                    scale,
+                    material: material.clone(),
+                };
+                indices.image += 1;
+            }
         }
     }
 }
@@ -436,23 +462,40 @@ impl FromWorld for ShapeTexture {
         let device = world.resource::<RenderDevice>();
         let queue = world.resource::<RenderQueue>();
 
+        let s = 5;
+        let mut data = [0u8; 5 * 5 * 5];
+        let mut index = 0;
+        for k in 0..s {
+            for j in 0..s {
+                for i in 0..s {
+                    let x = i as f32 / (s - 1) as f32 * 2.0 - 1.0;
+                    let y = j as f32 / (s - 1) as f32 * 2.0 - 1.0;
+                    let z = k as f32 / (s - 1) as f32 * 2.0 - 1.0;
+                    let dist = (x * x + y * y + z * z).sqrt() - 0.9;
+                    data[index] = unsafe { std::mem::transmute::<i8, u8>((dist * 127.0) as i8) };
+                    println!("{} => {}", (dist * 127.0) as i8, data[index]);
+                    index += 1;
+                }
+            }
+        }
+
         let default = device.create_texture_with_data(
             queue,
             &TextureDescriptor {
                 label: "default_shape_texture".into(),
                 size: Extent3d {
-                    width: 1,
-                    height: 1,
-                    depth_or_array_layers: 1,
+                    width: s,
+                    height: s,
+                    depth_or_array_layers: s,
                 },
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: TextureDimension::D3,
-                format: TextureFormat::R8Unorm,
+                format: TextureFormat::R8Snorm,
                 usage: TextureUsages::TEXTURE_BINDING,
                 view_formats: &[],
             },
-            &[0u8],
+            &data,
         );
 
         let default_view = default.create_view(&TextureViewDescriptor::default());
