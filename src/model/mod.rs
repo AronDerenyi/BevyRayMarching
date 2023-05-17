@@ -153,12 +153,12 @@ impl Triangle {
                     .length_squared()
                     .min(
                         (self.e32 * (self.e32.dot(d2) / self.e32.length_squared()).clamp(0.0, 1.0)
-                            - d2)
+                         - d2)
                             .length_squared(),
                     )
                     .min(
                         (self.e13 * (self.e13.dot(d3) / self.e13.length_squared()).clamp(0.0, 1.0)
-                            - d3)
+                         - d3)
                             .length_squared(),
                     )
             } else {
@@ -168,6 +168,12 @@ impl Triangle {
     }
 
     fn intersects(&self, pnt: Vec3, dir: Vec3) -> bool {
+        let to_center = self.center - pnt;
+        let doc = dir.dot(to_center);
+        if to_center.length_squared() - doc * doc > self.radius * self.radius {
+            return false;
+        }
+
         let nod = self.norm.dot(dir);
         if nod == 0.0 {
             return false;

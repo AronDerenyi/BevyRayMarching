@@ -19,6 +19,7 @@ use bevy::{
     },
     utils::HashMap,
 };
+use nalgebra::SMatrix;
 use std::{
     borrow::Borrow,
     ops::{Deref, Range},
@@ -459,13 +460,21 @@ fn add_primitive(
 
 fn get_inverse_transform(transform: &GlobalTransform, negative: bool) -> (Mat4, f32) {
     let matrix = transform.affine().matrix3;
-    let min_x_scale = point_plane_distance(matrix.x_axis, matrix.y_axis, matrix.z_axis);
-    let min_y_scale = point_plane_distance(matrix.y_axis, matrix.x_axis, matrix.z_axis);
-    let min_z_scale = point_plane_distance(matrix.z_axis, matrix.x_axis, matrix.y_axis);
+    let matrix = SMatrix::<f32, 3, 3>::new(
+        matrix.x_axis.x,
+        matrix.x_axis.y,
+        matrix.x_axis.z,
+        matrix.y_axis.x,
+        matrix.y_axis.y,
+        matrix.y_axis.z,
+        matrix.z_axis.x,
+        matrix.z_axis.y,
+        matrix.z_axis.z,
+    );
 
     (
         transform.compute_matrix().inverse(),
-        min_x_scale.min(min_y_scale).min(min_z_scale) * if negative { -1.0 } else { 1.0 },
+        matrix.svd(false, true).singular_values.z * if negative { -1.0 } else { 1.0 },
     )
 }
 

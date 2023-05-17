@@ -33,8 +33,8 @@ struct OrbitControls {
 pub struct Images(Vec<(String, Handle<ShapeImage>)>);
 
 fn main() {
-//    generate();
-//    return;
+    //    generate();
+    //    return;
 
     App::new()
         .init_resource::<Images>()
@@ -51,16 +51,19 @@ fn main() {
 }
 
 fn generate() {
-    let resolution = 64;
+    let resolution = 128;
     let padding = 8;
 
     let model = Model::from_ply(include_str!("../assets/bunny.ply").into())
         .unwrap()
-        .to_shape_image(Extent3d {
-            width: resolution,
-            height: resolution,
-            depth_or_array_layers: resolution,
-        }, padding);
+        .to_shape_image(
+            Extent3d {
+                width: resolution,
+                height: resolution,
+                depth_or_array_layers: resolution,
+            },
+            padding,
+        );
 
     dbg!(model.size, model.resolution);
 
@@ -69,7 +72,7 @@ fn generate() {
 }
 
 fn setup(mut commands: Commands, mut images: ResMut<Images>, asset_server: Res<AssetServer>) {
-    let bunny = asset_server.load("bunny_64.sdf");
+    let bunny = asset_server.load("bunny_128.sdf");
     let ico = asset_server.load("ico.ply");
 
     images.push(("Bunny".into(), bunny.clone()));
@@ -95,30 +98,37 @@ fn setup(mut commands: Commands, mut images: ResMut<Images>, asset_server: Res<A
         },
     ));
 
-    commands.spawn((
-        Name::new("bunny"),
-        Shape {
-            shape_type: Primitive(
-                Image(bunny),
-                Material::default(),
-            ),
-            ..default()
-        },
-        Transform::from_scale(Vec3::splat(3.0)),
-        GlobalTransform::default(),
-    ));
-    commands.spawn((
-        Name::new("ico"),
-        Shape {
-            shape_type: Primitive(
-                Image(ico),
-                Material::default(),
-            ),
-            ..default()
-        },
-        Transform::from_scale(Vec3::splat(3.0)),
-        GlobalTransform::default(),
-    ));
+    commands
+        .spawn((
+            Name::new("root"),
+            Shape::default(),
+            Transform::from_scale(Vec3::new(0.5, 1.0, 1.0)),
+            GlobalTransform::default(),
+        ))
+        .with_children(|builder| {
+            builder.spawn((
+                Name::new("cube"),
+                Shape {
+                    shape_type: Primitive(Cube { size: Vec3::ONE }, Material::default()),
+                    ..default()
+                },
+                Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, 0.0, 0.0, 0.785)),
+                GlobalTransform::default(),
+            ));
+        });
+
+    //    commands.spawn((
+    //        Name::new("bunny"),
+    //        Shape {
+    //            shape_type: Primitive(
+    //                Image(bunny),
+    //                Material::default(),
+    //            ),
+    //            ..default()
+    //        },
+    //        Transform::from_scale(Vec3::splat(3.0)),
+    //        GlobalTransform::default(),
+    //    ));
 
     //    commands
     //        .spawn((
