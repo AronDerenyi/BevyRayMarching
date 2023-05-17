@@ -89,10 +89,22 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
 
     commands.spawn((
-        Name::new("Image"),
+        Name::new("bunny"),
         Shape {
             shape_type: Primitive(
                 Image(asset_server.load("bunny_64.sdf")),
+                Material::default(),
+            ),
+            ..default()
+        },
+        Transform::from_scale(Vec3::splat(3.0)),
+        GlobalTransform::default(),
+    ));
+    commands.spawn((
+        Name::new("ico"),
+        Shape {
+            shape_type: Primitive(
+                Image(asset_server.load("ico.ply")),
                 Material::default(),
             ),
             ..default()

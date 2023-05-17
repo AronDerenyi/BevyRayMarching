@@ -1,6 +1,9 @@
 use super::{
     environment::EnvironmentBindGroupLayout,
-    shape::{ShapeGroup, ShapesBindGroupLayout, MAX_CUBES, MAX_PLANES, MAX_SPHERES, MAX_IMAGES},
+    shape::{
+        ShapeGroup, ShapesBindGroupLayout, MAX_CUBES, MAX_IMAGES, MAX_PLANES, MAX_SPHERES,
+        MAX_TEXTURES, ShapeImages,
+    },
     stages::StageBindGroupLayouts,
     view::ViewBindGroupLayout,
     RayMarching,
@@ -53,11 +56,12 @@ fn extract_shader(
     mut main_world: ResMut<MainWorld>,
     mut shader_cache: ResMut<ShaderCache>,
     shape_group: Option<Res<ShapeGroup>>,
+    shape_images: Res<ShapeImages>,
 ) {
     if let Some(shape_group) = shape_group {
         if !shader_cache.contains_key(&shape_group) {
-            let sdf = generate_sdf(&shape_group);
-            let material = generate_material(&shape_group);
+            let sdf = generate_sdf(&shape_group, &shape_images);
+            let material = generate_material(&shape_group, &shape_images);
             println!("{sdf}");
             println!("{material}");
             let shader_source = format!("{}\n{}\n{}", SHADER_SOURCE, sdf, material);
@@ -129,6 +133,7 @@ impl SpecializedRenderPipeline for TracingPipeline {
             ShaderDefVal::Int("MAX_SPHERES".into(), MAX_SPHERES as i32),
             ShaderDefVal::Int("MAX_CUBES".into(), MAX_CUBES as i32),
             ShaderDefVal::Int("MAX_IMAGES".into(), MAX_IMAGES as i32),
+            ShaderDefVal::Int("MAX_TEXTURES".into(), MAX_TEXTURES as i32),
             ShaderDefVal::Int("FAR".into(), 64),
         ];
 
@@ -267,23 +272,23 @@ fn queue_pipelines(
     }
 }
 
-fn generate_sdf(group: &ShapeGroup) -> String {
+fn generate_sdf(group: &ShapeGroup, images: &ShapeImages) -> String {
     let mut group_index = 0u8;
     format!(
         "fn sdf_generated(pnt: vec3<f32>) -> f32 {{\n{}return dist_0;\n}}",
-        generate_group_sdf(group, &mut group_index, false)
+        generate_group_sdf(images, group, &mut group_index, false)
     )
 }
 
-fn generate_material(group: &ShapeGroup) -> String {
+fn generate_material(group: &ShapeGroup, images: &ShapeImages) -> String {
     let mut group_index = 0u8;
     format!(
         "fn sdf_material_generated(pnt: vec3<f32>) -> SDFMaterialResult {{\n{}return SDFMaterialResult(dist_0, material_0);\n}}",
-        generate_group_sdf(group, &mut group_index, true)
+        generate_group_sdf(images, group, &mut group_index, true)
     )
 }
 
-fn generate_group_sdf(group: &ShapeGroup, index: &mut u8, material: bool) -> String {
+fn generate_group_sdf(images: &ShapeImages, group: &ShapeGroup, index: &mut u8, material: bool) -> String {
     let group_index = *index;
     *index += 1;
 
@@ -318,17 +323,17 @@ fn generate_group_sdf(group: &ShapeGroup, index: &mut u8, material: bool) -> Str
         &group.cube_index_range,
         material,
     );
-    source += &generate_shapes_sdf(
+    source += &generate_images_sdf(
+        images,
         group_index,
         group.operation,
-        "image",
         &group.image_index_range,
         material,
     );
 
     for child in group.children.iter() {
         let child_index = *index;
-        let child_source = generate_group_sdf(child, index, material);
+        let child_source = generate_group_sdf(images, child, index, material);
         source += &child_source;
         source += &generate_operation(
             group.operation,
@@ -381,6 +386,31 @@ fn generate_shapes_sdf(
             ),
         ),
     }
+}
+
+fn generate_images_sdf(
+    images: &ShapeImages,
+    index: u8,
+    operation: Operation,
+    index_range: &Range<u8>,
+    material: bool,
+) -> String {
+    let mut source = String::new();
+    for i in index_range.start..index_range.end {
+        let image_index = images.get_image_index(i);
+        source += &generate_operation(
+            operation,
+            index,
+            format!("sdf_image({i}u, {image_index}u, shape_texture_{image_index}, pnt)"),
+            if material {
+                Some(format!("shapes.images[{}u].material", i))
+            } else {
+                None
+            },
+        )
+    }
+
+    source
 }
 
 fn generate_for_loop(range: &Range<u8>, inner: String) -> String {

@@ -18,6 +18,7 @@ struct Shapes {
     spheres: array<Sphere, #{MAX_SPHERES}>,
     cubes: array<Cube, #{MAX_CUBES}>,
     images: array<Image, #{MAX_IMAGES}>,
+    texture_properties: array<TextureProperties, #{MAX_TEXTURES}>,
 };
 
 struct Plane {
@@ -41,8 +42,6 @@ struct Cube {
 };
 
 struct Image {
-    bounds: vec3<f32>,
-    texture_bounds: vec3<f32>,
     inv_transform: mat4x4<f32>,
     scale: f32,
     material: Material,
@@ -50,6 +49,11 @@ struct Image {
 
 struct Material {
     color: vec3<f32>,
+};
+
+struct TextureProperties {
+    bounds: vec3<f32>,
+    texture_bounds: vec3<f32>,
 };
 
 struct Stage {
@@ -63,7 +67,9 @@ var<uniform> shapes: Shapes;
 @group(1) @binding(1)
 var shape_sampler: sampler;
 @group(1) @binding(2)
-var shape_texture: texture_3d<f32>;
+var shape_texture_0: texture_3d<f32>;
+@group(1) @binding(3)
+var shape_texture_1: texture_3d<f32>;
 
 #ifdef FIRST_STAGE
     @group(2) @binding(0)
@@ -300,14 +306,15 @@ fn sdf_cube(index: u32, pnt: vec3<f32>) -> f32 {
     return (length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0)) * (*cube).scale;
 }
 
-fn sdf_image(index: u32, pnt: vec3<f32>) -> f32 {
+fn sdf_image(index: u32, texture_index: u32, texture: texture_3d<f32>, pnt: vec3<f32>) -> f32 {
     let image = &shapes.images[index];
+    let properties = &shapes.texture_properties[texture_index];
     let transformed_pnt = pos_transform(pnt, (*image).inv_transform);
-    let q = abs(transformed_pnt) - (*image).bounds;
+    let q = abs(transformed_pnt) - (*properties).bounds;
     let cube_distance = length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0);
     let image_distance = textureSample(
-        shape_texture, shape_sampler,
-        (transformed_pnt / (*image).texture_bounds + vec3(1.0)) * 0.5
+        texture, shape_sampler,
+        (transformed_pnt / (*properties).texture_bounds + vec3(1.0)) * 0.5
     ).r;
     return select(
         image_distance,

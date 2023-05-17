@@ -5,8 +5,9 @@ use bevy::{
     },
     math::Vec3A,
     prelude::{
-        warn, AddAsset, Children, Commands, Component, Entity, FromWorld, GlobalTransform, Handle,
-        IntoSystemConfig, Mat4, Parent, Plugin, Query, Res, ResMut, Resource, Vec3, With, Without,
+        default, warn, AddAsset, Children, Commands, Component, Deref, Entity, FromWorld,
+        GlobalTransform, Handle, IntoSystemConfig, Mat4, Parent, Plugin, Query, Res, ResMut,
+        Resource, Vec3, With, Without,
     },
     reflect::{FromReflect, Reflect, TypeUuid},
     render::{
@@ -16,6 +17,7 @@ use bevy::{
         renderer::{RenderDevice, RenderQueue},
         RenderApp, RenderSet,
     },
+    utils::HashMap,
 };
 use std::{
     borrow::Borrow,
@@ -34,7 +36,7 @@ impl Plugin for ShapePlugin {
             .init_resource::<ShapesUniformBuffer>()
             .init_resource::<ShapesBindGroupLayout>()
             .init_resource::<ShapeSampler>()
-            .init_resource::<ShapeTextures>()
+            .init_resource::<ShapeImages>()
             .add_system(prepare_shapes.in_set(RenderSet::Prepare))
             .add_system(queue_shapes_bind_group.in_set(RenderSet::Queue));
     }
@@ -184,7 +186,9 @@ impl RenderAsset for ShapeImage {
 pub const MAX_PLANES: u8 = 4;
 pub const MAX_SPHERES: u8 = 24;
 pub const MAX_CUBES: u8 = 24;
-pub const MAX_IMAGES: u8 = 1;
+pub const MAX_IMAGES: u8 = 4;
+
+pub const MAX_TEXTURES: u8 = 2;
 
 #[derive(ShaderType, Clone, Default)]
 struct ShapesUniform {
@@ -192,6 +196,7 @@ struct ShapesUniform {
     spheres: [Sphere; MAX_SPHERES as usize],
     cubes: [Cube; MAX_CUBES as usize],
     images: [Image; MAX_IMAGES as usize],
+    texture_properties: [TextureProperties; MAX_TEXTURES as usize],
 }
 
 #[derive(ShaderType, Clone, Default)]
@@ -219,11 +224,15 @@ struct Cube {
 
 #[derive(ShaderType, Clone, Default)]
 struct Image {
-    bounds: Vec3,
-    texture_bounds: Vec3,
     inv_transform: Mat4,
     scale: f32,
     material: Material,
+}
+
+#[derive(ShaderType, Clone, Default)]
+struct TextureProperties {
+    bounds: Vec3,
+    texture_bounds: Vec3,
 }
 
 #[derive(Resource, Default)]
@@ -256,22 +265,41 @@ fn prepare_shapes(
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     mut uniform_buffer: ResMut<ShapesUniformBuffer>,
-    mut textures: ResMut<ShapeTextures>,
+    mut shape_images: ResMut<ShapeImages>,
 ) {
-    textures.texture = None;
+    shape_images.handles.clear();
+    shape_images.indices.clear();
+
     let mut uniform = ShapesUniform::default();
     let mut indices = ShapeIndices::default();
 
     let root_group = create_group(
         &shapes,
-        &images,
         &ExtractedShape::default(),
         roots.iter(),
         &mut uniform,
-        &mut textures,
+        &mut shape_images,
         &mut indices,
     );
     commands.insert_resource(root_group);
+
+    for (index, handle) in shape_images.handles.iter().enumerate() {
+        let texture = match images.get(handle) {
+            Some(texture) => texture,
+            None => &shape_images.default_texture,
+        };
+
+        uniform.texture_properties[index] = TextureProperties {
+            bounds: texture.size / 2.0,
+            texture_bounds: texture.size
+                / 2.0
+                / Vec3::new(
+                    1.0 - 1.0 / texture.resolution.width as f32,
+                    1.0 - 1.0 / texture.resolution.height as f32,
+                    1.0 - 1.0 / texture.resolution.depth_or_array_layers as f32,
+                ),
+        }
+    }
 
     uniform_buffer.0.set(uniform);
     uniform_buffer.0.write_buffer(&*device, &*queue);
@@ -279,11 +307,10 @@ fn prepare_shapes(
 
 fn create_group<T>(
     shapes: &Query<&ExtractedShape>,
-    images: &RenderAssets<ShapeImage>,
     shape: &ExtractedShape,
     children: T,
     uniform: &mut ShapesUniform,
-    textures: &mut ShapeTextures,
+    images: &mut ShapeImages,
     indices: &mut ShapeIndices,
 ) -> ShapeGroup
 where
@@ -308,7 +335,7 @@ where
         match shape_type {
             ShapeType::Primitive(primitive, material) => {
                 add_primitive(
-                    images, uniform, textures, indices, transform, primitive, material, false,
+                    uniform, images, indices, transform, primitive, material, false,
                 );
                 (Operation::Union, *negative)
             }
@@ -329,8 +356,7 @@ where
             None => {
                 if let ShapeType::Primitive(primitive, material) = shape_type {
                     add_primitive(
-                        images, uniform, textures, indices, transform, primitive, material,
-                        *negative,
+                        uniform, images, indices, transform, primitive, material, *negative,
                     )
                 }
             }
@@ -349,9 +375,7 @@ where
     // Converting the shapes with children into groups
     let children = groups
         .iter()
-        .map(|(shape, children)| {
-            create_group(shapes, images, shape, *children, uniform, textures, indices)
-        })
+        .map(|(shape, children)| create_group(shapes, shape, *children, uniform, images, indices))
         .collect::<Vec<_>>();
 
     ShapeGroup {
@@ -366,9 +390,8 @@ where
 }
 
 fn add_primitive(
-    images: &RenderAssets<ShapeImage>,
     uniform: &mut ShapesUniform,
-    textures: &mut ShapeTextures,
+    images: &mut ShapeImages,
     indices: &mut ShapeIndices,
     transform: &GlobalTransform,
     primitive: &Primitive,
@@ -421,24 +444,14 @@ fn add_primitive(
             if indices.image == MAX_IMAGES {
                 warn!("Too many images are in the scene");
             } else {
-                if let Some(texture) = images.get(&image) {
-                    let (inv_transform, scale) = get_inverse_transform(transform, negative);
-                    uniform.images[indices.image as usize] = Image {
-                        bounds: texture.size / 2.0,
-                        texture_bounds: texture.size
-                            / 2.0
-                            / Vec3::new(
-                                1.0 - 1.0 / texture.resolution.width as f32,
-                                1.0 - 1.0 / texture.resolution.height as f32,
-                                1.0 - 1.0 / texture.resolution.depth_or_array_layers as f32,
-                            ),
-                        inv_transform,
-                        scale,
-                        material: material.clone(),
-                    };
-                    textures.texture = Some(texture.clone());
-                    indices.image += 1;
-                }
+                let (inv_transform, scale) = get_inverse_transform(transform, negative);
+                uniform.images[indices.image as usize] = Image {
+                    inv_transform,
+                    scale,
+                    material: material.clone(),
+                };
+                images.add_image(indices.image, image);
+                indices.image += 1;
             }
         }
     }
@@ -475,36 +488,41 @@ impl Deref for ShapesBindGroupLayout {
 impl FromWorld for ShapesBindGroupLayout {
     fn from_world(world: &mut bevy::prelude::World) -> Self {
         let device = world.resource::<RenderDevice>();
+        let mut entries = vec![
+            BindGroupLayoutEntry {
+                binding: 0,
+                visibility: ShaderStages::FRAGMENT,
+                ty: BindingType::Buffer {
+                    ty: BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: Some(ShapesUniform::min_size()),
+                },
+                count: None,
+            },
+            BindGroupLayoutEntry {
+                binding: 1,
+                visibility: ShaderStages::FRAGMENT,
+                ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                count: None,
+            },
+        ];
+
+        for index in 0..MAX_TEXTURES {
+            entries.push(BindGroupLayoutEntry {
+                binding: 2 + index as u32,
+                visibility: ShaderStages::FRAGMENT,
+                ty: BindingType::Texture {
+                    sample_type: TextureSampleType::Float { filterable: true },
+                    view_dimension: TextureViewDimension::D3,
+                    multisampled: false,
+                },
+                count: None,
+            });
+        }
+
         Self(device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: "shapes_bind_group_layout".into(),
-            entries: &[
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: Some(ShapesUniform::min_size()),
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Float { filterable: true },
-                        view_dimension: TextureViewDimension::D3,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-            ],
+            entries: &entries,
         }))
     }
 }
@@ -527,12 +545,13 @@ impl FromWorld for ShapeSampler {
 }
 
 #[derive(Resource)]
-struct ShapeTextures {
-    default: ShapeTexture,
-    texture: Option<ShapeTexture>,
+pub struct ShapeImages {
+    default_texture: ShapeTexture,
+    handles: Vec<Handle<ShapeImage>>,
+    indices: HashMap<u8, u8>,
 }
 
-impl FromWorld for ShapeTextures {
+impl FromWorld for ShapeImages {
     fn from_world(world: &mut bevy::prelude::World) -> Self {
         let device = world.resource::<RenderDevice>();
         let queue = world.resource::<RenderQueue>();
@@ -561,60 +580,83 @@ impl FromWorld for ShapeTextures {
         let texture_view = texture.create_view(&TextureViewDescriptor::default());
 
         Self {
-            default: ShapeTexture {
+            default_texture: ShapeTexture {
                 size: Vec3::ZERO,
                 resolution,
                 texture,
                 texture_view,
             },
-            texture: None,
+            handles: default(),
+            indices: default(),
         }
     }
 }
 
-#[derive(Resource)]
-pub struct ShapesBindGroup(BindGroup);
+impl ShapeImages {
+    fn add_image(&mut self, image_index: u8, image_handle: &Handle<ShapeImage>) {
+        if let Some(index) = self
+            .handles
+            .iter()
+            .position(|handle| handle == image_handle)
+        {
+            self.indices.insert(image_index, index as u8);
+        } else if self.handles.len() < MAX_TEXTURES as usize {
+            self.indices.insert(image_index, self.handles.len() as u8);
+            self.handles.push(image_handle.clone());
+        } else {
+            warn!("Too many different image are in the scene");
+        }
+    }
 
-impl Deref for ShapesBindGroup {
-    type Target = BindGroup;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.0
+    pub fn get_image_index(&self, shape_index: u8) -> u8 {
+        self.indices[&shape_index]
     }
 }
 
+#[derive(Resource, Deref)]
+pub struct ShapesBindGroup(BindGroup);
+
 fn queue_shapes_bind_group(
     mut commands: Commands,
+    images: Res<RenderAssets<ShapeImage>>,
     bind_group_layout: Res<ShapesBindGroupLayout>,
     uniform_buffer: Res<ShapesUniformBuffer>,
     sampler: Res<ShapeSampler>,
-    textures: Res<ShapeTextures>,
+    shape_images: Res<ShapeImages>,
     device: Res<RenderDevice>,
 ) {
-    let texture_view = match &textures.texture {
-        Some(texture) => &texture.texture_view,
-        None => &textures.default.texture_view,
-    };
+    let mut entries = vec![
+        BindGroupEntry {
+            binding: 0,
+            resource: uniform_buffer.0.binding().unwrap(),
+        },
+        BindGroupEntry {
+            binding: 1,
+            resource: BindingResource::Sampler(&sampler.0),
+        },
+    ];
+
+    for index in 0..MAX_TEXTURES as usize {
+        let texture = if index < shape_images.handles.len() {
+            match images.get(&shape_images.handles[index]) {
+                Some(texture) => texture,
+                None => &shape_images.default_texture,
+            }
+        } else {
+            &shape_images.default_texture
+        };
+
+        entries.push(BindGroupEntry {
+            binding: 2 + index as u32,
+            resource: BindingResource::TextureView(&texture.texture_view),
+        });
+    }
 
     commands.insert_resource(ShapesBindGroup(device.create_bind_group(
         &BindGroupDescriptor {
             label: "shapes_bind_group".into(),
             layout: &bind_group_layout,
-            entries: &[
-                BindGroupEntry {
-                    binding: 0,
-                    resource: uniform_buffer.0.binding().unwrap(),
-                },
-                BindGroupEntry {
-                    binding: 1,
-                    resource: BindingResource::Sampler(&sampler.0),
-                },
-                BindGroupEntry {
-                    binding: 2,
-                    resource: BindingResource::TextureView(texture_view),
-                },
-            ],
+            entries: &entries,
         },
     )));
 }
