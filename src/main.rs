@@ -1,3 +1,4 @@
+mod model;
 mod ray_marching;
 mod user_interface;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
@@ -5,6 +6,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::Extent3d;
 use bevy::{diagnostic::LogDiagnosticsPlugin, input::mouse::MouseWheel};
 use bevy_egui::EguiPlugin;
+use model::Model;
 use ray_marching::RayMarching;
 use ray_marching::{
     Environment, Material,
@@ -14,6 +16,9 @@ use ray_marching::{
     ShapeType::{Compound, Primitive},
 };
 use std::f32::consts;
+use std::fs::File;
+use std::io::Read;
+use std::io::Write;
 use user_interface::UIPlugin;
 
 #[derive(Component)]
@@ -27,6 +32,9 @@ struct OrbitControls {
 struct Bouncing;
 
 fn main() {
+//    generate();
+//    return;
+
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(LogDiagnosticsPlugin::default())
@@ -41,7 +49,25 @@ fn main() {
         .run();
 }
 
-fn setup(mut commands: Commands, mut images: ResMut<Assets<ShapeImage>>) {
+fn generate() {
+    let resolution = 64;
+    let padding = 8;
+
+    let model = Model::from_ply(include_str!("../assets/bunny.ply").into())
+        .unwrap()
+        .to_shape_image(Extent3d {
+            width: resolution,
+            height: resolution,
+            depth_or_array_layers: resolution,
+        }, padding);
+
+    dbg!(model.size, model.resolution);
+
+    let mut file = File::create(format!("assets/bunny_{resolution}.sdf")).unwrap();
+    file.write_all(&Box::<[u8]>::from(model)).unwrap();
+}
+
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         Camera3dBundle::default(),
         RayMarching {
@@ -62,40 +88,16 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<ShapeImage>>) {
         },
     ));
 
-    let s = 256;
-    let size = Vec3::splat(8.0);
-    let resolution = Extent3d {
-        width: s,
-        height: s,
-        depth_or_array_layers: s,
-    };
-    let mut data = vec![];
-    for k in 0..s {
-        for j in 0..s {
-            for i in 0..s {
-                let x = i as f32 / (s - 1) as f32 * size.x - 4.0;
-                let y = j as f32 / (s - 1) as f32 * size.y - 4.0;
-                let z = k as f32 / (s - 1) as f32 * size.z - 4.0;
-                let dist = (x * x + y * y + z * z).sqrt() - 3.0;
-                data.push(dist);
-            }
-        }
-    }
-
     commands.spawn((
         Name::new("Image"),
         Shape {
             shape_type: Primitive(
-                Image(images.add(ShapeImage {
-                    size,
-                    resolution,
-                    data,
-                })),
+                Image(asset_server.load("bunny_64.sdf")),
                 Material::default(),
             ),
             ..default()
         },
-        Transform::default(),
+        Transform::from_scale(Vec3::splat(3.0)),
         GlobalTransform::default(),
     ));
 
