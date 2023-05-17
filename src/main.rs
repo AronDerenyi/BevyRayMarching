@@ -4,6 +4,7 @@ mod user_interface;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::prelude::*;
 use bevy::render::render_resource::Extent3d;
+use bevy::utils::HashMap;
 use bevy::{diagnostic::LogDiagnosticsPlugin, input::mouse::MouseWheel};
 use bevy_egui::EguiPlugin;
 use model::Model;
@@ -28,14 +29,15 @@ struct OrbitControls {
     zoom: f32,
 }
 
-#[derive(Component)]
-struct Bouncing;
+#[derive(Resource, Deref, DerefMut, Default)]
+pub struct Images(Vec<(String, Handle<ShapeImage>)>);
 
 fn main() {
 //    generate();
 //    return;
 
     App::new()
+        .init_resource::<Images>()
         .add_plugins(DefaultPlugins)
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
@@ -45,7 +47,6 @@ fn main() {
         .add_startup_system(setup)
         .add_system(orbit_controller)
         .add_system(orbit_updater)
-        .add_system(bouncing_updater)
         .run();
 }
 
@@ -67,7 +68,13 @@ fn generate() {
     file.write_all(&Box::<[u8]>::from(model)).unwrap();
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup(mut commands: Commands, mut images: ResMut<Images>, asset_server: Res<AssetServer>) {
+    let bunny = asset_server.load("bunny_64.sdf");
+    let ico = asset_server.load("ico.ply");
+
+    images.push(("Bunny".into(), bunny.clone()));
+    images.push(("Icosahedron".into(), ico.clone()));
+
     commands.spawn((
         Camera3dBundle::default(),
         RayMarching {
@@ -92,7 +99,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Name::new("bunny"),
         Shape {
             shape_type: Primitive(
-                Image(asset_server.load("bunny_64.sdf")),
+                Image(bunny),
                 Material::default(),
             ),
             ..default()
@@ -104,7 +111,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Name::new("ico"),
         Shape {
             shape_type: Primitive(
-                Image(asset_server.load("ico.ply")),
+                Image(ico),
                 Material::default(),
             ),
             ..default()
@@ -257,11 +264,5 @@ fn orbit_updater(mut orbits: Query<(&mut Transform, &OrbitControls)>) {
             Quat::from_rotation_z(orbit.rotation.x) * Quat::from_rotation_x(orbit.rotation.y);
         transform.translation = orbit.pivot + rotation * Vec3::Z * orbit.zoom;
         transform.rotation = rotation;
-    }
-}
-
-fn bouncing_updater(mut transforms: Query<&mut Transform, With<Bouncing>>, time: Res<Time>) {
-    for mut transform in transforms.iter_mut() {
-        transform.translation.z = time.elapsed_seconds().sin() * 0.5 + 0.05;
     }
 }

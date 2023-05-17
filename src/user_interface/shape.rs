@@ -1,14 +1,17 @@
 use super::SelectedShape;
-use crate::ray_marching::{
-    Material,
-    Operation::{Intersection, Union},
-    Primitive::{Cube, Plane, Sphere, Image},
-    Shape,
-    ShapeType::{self, Compound, Primitive},
+use crate::{
+    ray_marching::{
+        Material,
+        Operation::{Intersection, Union},
+        Primitive::{Cube, Image, Plane, Sphere},
+        Shape, ShapeImage,
+        ShapeType::{self, Compound, Primitive},
+    },
+    Images,
 };
 use bevy::prelude::{
-    BuildChildren, Commands, DespawnRecursiveExt, Entity, EulerRot, Mut, Name, Parent, Quat, Query,
-    Res, Transform, Vec3,
+    BuildChildren, Commands, DespawnRecursiveExt, Entity, EulerRot, Handle, Mut, Name, Parent,
+    Quat, Query, Res, Transform, Vec3,
 };
 use bevy_egui::{
     egui::{Align, ComboBox, DragValue, Grid, Layout, Ui, Window},
@@ -19,6 +22,7 @@ pub fn ui(
     mut commands: Commands,
     mut egui_contexts: EguiContexts,
     selected_shape: Res<SelectedShape>,
+    images: Res<Images>,
     mut shapes: Query<(
         Entity,
         &mut Name,
@@ -53,7 +57,7 @@ pub fn ui(
             ui.separator();
             transform_ui(ui, transform);
             ui.separator();
-            shape_ui(ui, shape);
+            shape_ui(ui, &images, shape);
             ui.separator();
             if ui.button("Delete").clicked() {
                 commands.entity(entity).despawn_recursive();
@@ -124,10 +128,10 @@ fn transform_ui(ui: &mut Ui, mut transform: Mut<Transform>) {
     });
 }
 
-fn shape_ui(ui: &mut Ui, mut shape: Mut<Shape>) {
+fn shape_ui(ui: &mut Ui, images: &Images, mut shape: Mut<Shape>) {
     Grid::new("shape").num_columns(2).show(ui, |ui| {
         ui.label("Type:");
-        shape_type_ui(ui, &mut shape.shape_type);
+        shape_type_ui(ui, images, &mut shape.shape_type);
         ui.end_row();
 
         if let Primitive(ref mut primitive, ref mut material) = &mut shape.shape_type {
@@ -155,26 +159,49 @@ fn shape_ui(ui: &mut Ui, mut shape: Mut<Shape>) {
     });
 }
 
-fn shape_type_ui(ui: &mut Ui, shape_type: &mut ShapeType) {
-    let (name, radius, size, material) = match shape_type {
-        Primitive(Plane, material) => ("Plane", 1.0, Vec3::ONE, material.clone()),
-        Primitive(Sphere { radius }, material) => {
-            ("Sphere", *radius, Vec3::splat(*radius), material.clone())
+fn shape_type_ui(ui: &mut Ui, images: &Images, shape_type: &mut ShapeType) {
+    let (name, radius, size, handle, material) = match shape_type {
+        Primitive(Plane, material) => {
+            ("Plane", 1.0, Vec3::ONE, Handle::default(), material.clone())
         }
+        Primitive(Sphere { radius }, material) => (
+            "Sphere",
+            *radius,
+            Vec3::splat(*radius),
+            Handle::default(),
+            material.clone(),
+        ),
         Primitive(Cube { size }, material) => (
             "Cube",
             (size.x + size.y + size.z) / 3.0,
             *size,
+            Handle::default(),
             material.clone(),
         ),
-        Primitive(Image { .. }, material) => (
-            "Image",
+        Primitive(Image(image_handle), material) => (
+            images
+                .iter()
+                .find(|(_, handle)| handle == image_handle)
+                .map_or("Image", |(name, _)| name),
             1.0,
             Vec3::ONE,
+            image_handle.clone(),
             material.clone(),
         ),
-        Compound(Union) => ("Union", 1.0, Vec3::ONE, Material::default()),
-        Compound(Intersection) => ("Intersection", 1.0, Vec3::ONE, Material::default()),
+        Compound(Union) => (
+            "Union",
+            1.0,
+            Vec3::ONE,
+            Handle::default(),
+            Material::default(),
+        ),
+        Compound(Intersection) => (
+            "Intersection",
+            1.0,
+            Vec3::ONE,
+            Handle::default(),
+            Material::default(),
+        ),
     };
 
     ComboBox::new("shape_type", "")
@@ -191,6 +218,13 @@ fn shape_type_ui(ui: &mut Ui, shape_type: &mut ShapeType) {
                 Primitive(Cube { size }, material.clone()),
                 "Cube",
             );
+            for (name, handle) in images.iter() {
+                ui.selectable_value(
+                    shape_type,
+                    Primitive(Image(handle.clone()), material.clone()),
+                    name,
+                );
+            }
             ui.selectable_value(shape_type, Compound(Union), "Union");
             ui.selectable_value(shape_type, Compound(Intersection), "Intersection");
         });
