@@ -98,24 +98,24 @@ fn setup(mut commands: Commands, mut images: ResMut<Images>, asset_server: Res<A
         },
     ));
 
-    commands
-        .spawn((
-            Name::new("root"),
-            Shape::default(),
-            Transform::from_scale(Vec3::new(0.5, 1.0, 1.0)),
-            GlobalTransform::default(),
-        ))
-        .with_children(|builder| {
-            builder.spawn((
-                Name::new("cube"),
-                Shape {
-                    shape_type: Primitive(Cube { size: Vec3::ONE }, Material::default()),
-                    ..default()
-                },
-                Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, 0.0, 0.0, 0.785)),
-                GlobalTransform::default(),
-            ));
-        });
+//    commands
+//        .spawn((
+//            Name::new("root"),
+//            Shape::default(),
+//            Transform::from_scale(Vec3::new(0.5, 1.0, 1.0)),
+//            GlobalTransform::default(),
+//        ))
+//        .with_children(|builder| {
+//            builder.spawn((
+//                Name::new("cube"),
+//                Shape {
+//                    shape_type: Primitive(Cube { size: Vec3::ONE }, Material::default()),
+//                    ..default()
+//                },
+//                Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, 0.0, 0.0, 0.785)),
+//                GlobalTransform::default(),
+//            ));
+//        });
 
     //    commands.spawn((
     //        Name::new("bunny"),
@@ -130,34 +130,34 @@ fn setup(mut commands: Commands, mut images: ResMut<Images>, asset_server: Res<A
     //        GlobalTransform::default(),
     //    ));
 
-    //    commands
-    //        .spawn((
-    //            Name::new("Root"),
-    //            Shape::default(),
-    //            Transform::default(),
-    //            GlobalTransform::default(),
-    //        ))
-    //        .with_children(|builder| {
-    //            for y in -2..=2 {
-    //                for x in -2..=2 {
-    //                    builder.spawn((
-    //                        Name::new(format!("Sphere_{x}_{y}")),
-    //                        Shape {
-    //                            shape_type: Primitive(
-    //                                Sphere { radius: 0.4 },
-    //                                Material {
-    //                                    color: Vec3::new(1.0, 1.0, 1.0),
-    //                                },
-    //                            ),
-    //                            ..default()
-    //                        },
-    //                        Transform::from_xyz(x as f32, y as f32, 0.0),
-    //                        GlobalTransform::default(),
-    //                    ));
-    //                }
-    //            }
-    //        });
-    //    return;
+        commands
+            .spawn((
+                Name::new("Root"),
+                Shape::default(),
+                Transform::default(),
+                GlobalTransform::default(),
+            ))
+            .with_children(|builder| {
+                for y in -2..=2 {
+                    for x in -2..=2 {
+                        builder.spawn((
+                            Name::new(format!("Sphere_{x}_{y}")),
+                            Shape {
+                                shape_type: Primitive(
+                                    Sphere { radius: 0.4 },
+                                    Material {
+                                        color: Vec3::new(1.0, 1.0, 1.0),
+                                    },
+                                ),
+                                ..default()
+                            },
+                            Transform::from_xyz(x as f32, y as f32, 0.0),
+                            GlobalTransform::default(),
+                        ));
+                    }
+                }
+            });
+        return;
 
     //    commands
     //        .spawn((

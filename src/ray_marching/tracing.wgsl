@@ -58,6 +58,7 @@ struct TextureProperties {
 
 struct Stage {
     texel_size: vec2<f32>,
+    _padding: vec2<f32>,
 }
 
 @group(0) @binding(0)
@@ -306,14 +307,14 @@ fn sdf_cube(index: u32, pnt: vec3<f32>) -> f32 {
     return (length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0)) * (*cube).scale;
 }
 
-fn sdf_image(index: u32, texture_index: u32, texture: texture_3d<f32>, pnt: vec3<f32>) -> f32 {
+fn sdf_image(index: u32, texture_index: u32, texture_image: texture_3d<f32>, pnt: vec3<f32>) -> f32 {
     let image = &shapes.images[index];
     let properties = &shapes.texture_properties[texture_index];
     let transformed_pnt = pos_transform(pnt, (*image).inv_transform);
     let q = abs(transformed_pnt) - (*properties).bounds;
     let cube_distance = length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0);
     let image_distance = textureSample(
-        texture, shape_sampler,
+        texture_image, shape_sampler,
         (transformed_pnt / (*properties).texture_bounds + vec3(1.0)) * 0.5
     ).r;
     return select(

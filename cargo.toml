@@ -9,3 +9,6 @@ bevy = "0.10"
 bevy_egui = "0.20"
 log = "0.4"
 nalgebra = "0.32.2"
+
+[target.wasm32-unknown-unknown]
+runner = "wasm-server-runner"

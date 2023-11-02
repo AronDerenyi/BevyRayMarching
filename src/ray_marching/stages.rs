@@ -43,6 +43,7 @@ pub struct StageUniformIndices {
 #[derive(ShaderType, Clone, Default)]
 struct StageUniform {
     texel_size: Vec2,
+    _padding: Vec2,
 }
 
 #[derive(Resource, Default)]
@@ -107,6 +108,7 @@ fn prepare_stages(
                 let h = start_height;
                 let first_index = uniform_buffer.0.push(StageUniform {
                     texel_size: Vec2::new(1.0 / w as f32, 1.0 / h as f32),
+                    _padding: Vec2::ZERO,
                 });
                 let first_texture = texture_cache.get(
                     &device,
@@ -128,6 +130,7 @@ fn prepare_stages(
                     let h = start_height * scale;
                     mid_indices.push(uniform_buffer.0.push(StageUniform {
                         texel_size: Vec2::new(1.0 / w as f32, 1.0 / h as f32),
+                        _padding: Vec2::ZERO,
                     }));
                     mid_textures.push(texture_cache.get(
                         &device,
@@ -144,6 +147,7 @@ fn prepare_stages(
 
                 let last_index = uniform_buffer.0.push(StageUniform {
                     texel_size: Vec2::new(1.0 / width as f32, 1.0 / height as f32),
+                    _padding: Vec2::ZERO,
                 });
                 let last_texture = texture_cache.get(
                     &device,
