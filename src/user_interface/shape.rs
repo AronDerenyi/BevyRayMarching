@@ -2,7 +2,7 @@ use super::SelectedShape;
 use crate::{
     ray_marching::{
         Material,
-        Operation::{Intersection, Union},
+        Operation::{Intersection, Union, SmoothUnion},
         Primitive::{Cube, Image, Plane, Sphere},
         Shape, ShapeImage,
         ShapeType::{self, Compound, Primitive},
@@ -202,6 +202,13 @@ fn shape_type_ui(ui: &mut Ui, images: &Images, shape_type: &mut ShapeType) {
             Handle::default(),
             Material::default(),
         ),
+        Compound(SmoothUnion) => (
+            "SmoothUnion",
+            1.0,
+            Vec3::ONE,
+            Handle::default(),
+            Material::default(),
+        ),
     };
 
     ComboBox::new("shape_type", "")
@@ -227,6 +234,7 @@ fn shape_type_ui(ui: &mut Ui, images: &Images, shape_type: &mut ShapeType) {
             }
             ui.selectable_value(shape_type, Compound(Union), "Union");
             ui.selectable_value(shape_type, Compound(Intersection), "Intersection");
+            ui.selectable_value(shape_type, Compound(SmoothUnion), "SmoothUnion");
         });
 }
 

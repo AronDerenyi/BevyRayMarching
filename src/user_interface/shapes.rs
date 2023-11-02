@@ -1,7 +1,7 @@
 use super::SelectedShape;
 use crate::ray_marching::{
-    Operation::{Intersection, Union},
-    Primitive::{Cube, Plane, Sphere, Image},
+    Operation::{Intersection, SmoothUnion, Union},
+    Primitive::{Cube, Image, Plane, Sphere},
     Shape,
     ShapeType::{Compound, Primitive},
 };
@@ -83,6 +83,7 @@ fn shape_label_ui(
             Primitive(Image { .. }, ..) => format!("{name} (Image)"),
             Compound(Union) => format!("{name} (Union)"),
             Compound(Intersection) => format!("{name} (Intersection)"),
+            Compound(SmoothUnion) => format!("{name} (SmoothUnion)"),
         },
     );
 }

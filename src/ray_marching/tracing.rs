@@ -8,7 +8,7 @@ use super::{
     view::ViewBindGroupLayout,
     RayMarching,
 };
-use crate::ray_marching::shape::Operation::{self, Intersection, Union};
+use crate::ray_marching::shape::Operation::{self, Intersection, Union, SmoothUnion};
 use bevy::{
     core_pipeline::fullscreen_vertex_shader::fullscreen_shader_vertex_state,
     prelude::{
@@ -297,6 +297,7 @@ fn generate_group_sdf(images: &ShapeImages, group: &ShapeGroup, index: &mut u8, 
         match group.operation {
             Union => "#{FAR}f",
             Intersection => "-#{FAR}f",
+            SmoothUnion => "#{FAR}f",
         }
     );
     if material {
@@ -430,6 +431,7 @@ fn generate_operation(
         None => match operation {
             Union => format!("dist_{index} = min(dist_{index}, {dist});\n"),
             Intersection => format!("dist_{index} = max(dist_{index}, {dist});\n"),
+            SmoothUnion => format!("dist_{index} = smin(dist_{index}, {dist});\n"),
         },
         Some(material) => match operation {
             Union => format!(
@@ -437,6 +439,9 @@ fn generate_operation(
             ),
             Intersection => format!(
                 "if max_select(&dist_{index}, {dist}) {{ material_{index} = {material}; }}\n"
+            ),
+            SmoothUnion => format!(
+                "material_{index} = mix_material(material_{index}, {material}, smin_mix(&dist_{index}, {dist}));\n"
             ),
         },
     }

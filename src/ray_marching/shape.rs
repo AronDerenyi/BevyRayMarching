@@ -76,6 +76,7 @@ pub struct ShapeImage {
 pub enum Operation {
     Union,
     Intersection,
+    SmoothUnion,
 }
 
 impl Default for ShapeType {

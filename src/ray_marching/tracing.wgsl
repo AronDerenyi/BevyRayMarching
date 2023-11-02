@@ -336,6 +336,29 @@ fn max_select(left: ptr<function, f32>, right: f32) -> bool {
     return *left == right;
 }
 
+const K = 0.4;
+fn smin(left: f32, right: f32) -> f32 {
+    let h = max(K - abs(left - right), 0.0) / K;
+    return min(left, right) - h * h * h * K * (1.0 / 2.0 / 3.0);
+}
+
+fn smin_mix(left: ptr<function, f32>, right: f32) -> f32 {
+    let h = max(K - abs(*left - right), 0.0) / K;
+    let m = h * h * h * 0.5;
+    let s = m * K * (1.0 / 3.0);
+    if *left < right {
+        *left = *left - s;
+        return m;
+    } else {
+        *left = right - s;
+        return 1.0 - m;
+    }
+}
+
+fn mix_material(left: Material, right: Material, factor: f32) -> Material {
+    return Material(mix(left.color, right.color, factor));
+}
+
 fn get_direction(uv: vec2<f32>) -> vec3<f32> {
     return normalize(
         view.right * uv.x +
