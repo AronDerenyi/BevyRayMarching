@@ -136,7 +136,8 @@ fn main(@location(0) uv: vec2<f32>) ->
 
         for (var i = 0u; i < #{ITERATIONS}u; i = i + 1u) {
             let distance = sdf(pos + dir * progress);
-            progress = clamp((progress + distance) / (1.0 + texel_radius), progress, #{FAR}f);
+            //progress = clamp((progress + distance) / (1.0 + texel_radius), progress, #{FAR}f);
+            progress = clamp(progress + (distance - progress * texel_radius) / (1.0 + texel_radius), progress, #{FAR}f);
         }
         return progress;
     #else
@@ -149,17 +150,13 @@ fn main(@location(0) uv: vec2<f32>) ->
                 length_squared(dir - get_direction(screen_uv + vec2(0.0, -stage.texel_size.y))),
                 length_squared(dir - get_direction(screen_uv + vec2(0.0, stage.texel_size.y)))
             )
-        ));
+        )) * 0.1;
 
         var collided = false;
         var distance: f32;
         while (progress < #{FAR}f) {
-            #ifdef DEBUG_ITERATIONS
-                iterations += 1u;
-            #endif
-
             distance = sdf(pos + dir * progress);
-            if distance >= progress * texel_radius {
+            if distance > progress * texel_radius {
                 progress = progress + distance;
             } else {
                 collided = true;
@@ -271,9 +268,6 @@ fn shadow(pnt: vec3<f32>, incident_light: vec3<f32>, NoL: f32, rad: f32, penumbr
     var progress = (rad + penumbra) / NoL;
     var min_distance = #{FAR}f;
     while (min_distance >= rad && progress < #{FAR}f) {
-        #ifdef DEBUG_ITERATIONS
-            iterations += 1u;
-        #endif
         let distance = sdf(pnt + incident_light * progress);
         min_distance = min(min_distance, distance);
         progress += distance;
@@ -284,10 +278,16 @@ fn shadow(pnt: vec3<f32>, incident_light: vec3<f32>, NoL: f32, rad: f32, penumbr
 
 
 fn sdf(pnt: vec3<f32>) -> f32 {
+    #ifdef DEBUG_ITERATIONS
+        iterations += 1u;
+    #endif
     return sdf_generated(pnt);
 }
 
 fn sdf_material(pnt: vec3<f32>) -> SDFMaterialResult {
+    #ifdef DEBUG_ITERATIONS
+        iterations += 1u;
+    #endif
     return sdf_material_generated(pnt);
 }
 
@@ -312,7 +312,7 @@ fn sdf_image(index: u32, texture_index: u32, texture_image: texture_3d<f32>, pnt
     let properties = &shapes.texture_properties[texture_index];
     let transformed_pnt = pos_transform(pnt, (*image).inv_transform);
     let q = abs(transformed_pnt) - (*properties).bounds;
-    let cube_distance = length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0);
+    let cube_distance = length(max(q, vec3(0.0)));
     let image_distance = textureSample(
         texture_image, shape_sampler,
         (transformed_pnt / (*properties).texture_bounds + vec3(1.0)) * 0.5

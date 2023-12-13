@@ -130,34 +130,34 @@ fn setup(mut commands: Commands, mut images: ResMut<Images>, asset_server: Res<A
     //        GlobalTransform::default(),
     //    ));
 
-        commands
-            .spawn((
-                Name::new("Root"),
-                Shape::default(),
-                Transform::default(),
-                GlobalTransform::default(),
-            ))
-            .with_children(|builder| {
-                for y in -2..=2 {
-                    for x in -2..=2 {
-                        builder.spawn((
-                            Name::new(format!("Sphere_{x}_{y}")),
-                            Shape {
-                                shape_type: Primitive(
-                                    Sphere { radius: 0.4 },
-                                    Material {
-                                        color: Vec3::new(1.0, 1.0, 1.0),
-                                    },
-                                ),
-                                ..default()
-                            },
-                            Transform::from_xyz(x as f32, y as f32, 0.0),
-                            GlobalTransform::default(),
-                        ));
-                    }
-                }
-            });
-        return;
+//        commands
+//            .spawn((
+//                Name::new("Root"),
+//                Shape::default(),
+//                Transform::default(),
+//                GlobalTransform::default(),
+//            ))
+//            .with_children(|builder| {
+//                for y in -2..=2 {
+//                    for x in -2..=2 {
+//                        builder.spawn((
+//                            Name::new(format!("Sphere_{x}_{y}")),
+//                            Shape {
+//                                shape_type: Primitive(
+//                                    Sphere { radius: 0.4 },
+//                                    Material {
+//                                        color: Vec3::new(1.0, 1.0, 1.0),
+//                                    },
+//                                ),
+//                                ..default()
+//                            },
+//                            Transform::from_xyz(x as f32, y as f32, 0.0),
+//                            GlobalTransform::default(),
+//                        ));
+//                    }
+//                }
+//            });
+//        return;
 
     //    commands
     //        .spawn((

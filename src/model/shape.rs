@@ -30,7 +30,7 @@ pub fn build(model: &Model, resolution: Extent3d, padding: u32) -> ShapeImage {
                     + offset;
                 data.push(model.distance(pnt));
             }
-            println!("============= {y} {z} =============");
+            //println!("============= {y} {z} =============");
         }
     }
 

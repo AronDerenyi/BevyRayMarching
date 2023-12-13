@@ -291,15 +291,16 @@ fn prepare_shapes(
             None => &shape_images.default_texture,
         };
 
+        let texel_size = texture.size
+            / Vec3::new(
+                texture.resolution.width as f32,
+                texture.resolution.height as f32,
+                texture.resolution.depth_or_array_layers as f32,
+            );
+
         uniform.texture_properties[index] = TextureProperties {
-            bounds: texture.size / 2.0,
-            texture_bounds: texture.size
-                / 2.0
-                / Vec3::new(
-                    1.0 - 1.0 / texture.resolution.width as f32,
-                    1.0 - 1.0 / texture.resolution.height as f32,
-                    1.0 - 1.0 / texture.resolution.depth_or_array_layers as f32,
-                ),
+            bounds: (texture.size - texel_size) / 2.0,
+            texture_bounds: texture.size / 2.0,
         }
     }
 
